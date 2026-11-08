@@ -19,6 +19,8 @@ object Protocollo {
     const val CIAO = 0x01
     const val TASTI = 0x02
     const val PING = 0x03
+    const val CHI = 0x04
+    const val SONO = 0x84
     const val BENVENUTO = 0x81
     const val STATO = 0x82
 
@@ -28,6 +30,26 @@ object Protocollo {
         m[0] = (n + 1).toByte(); m[1] = tipo.toByte()
         System.arraycopy(dati, 0, m, 2, n)
         return m
+    }
+}
+
+/** Ricerca senza Bonjour: prova tutti gli indirizzi del Wi-Fi sulla porta di FMLAB (come fa l'iPhone). */
+object Scansione {
+    fun prova(ip: String): String? = try {
+        Socket().use { s ->
+            s.connect(InetSocketAddress(ip, Protocollo.PORTA), 700); s.soTimeout = 1500; s.tcpNoDelay = true
+            s.getOutputStream().apply { write(Protocollo.messaggio(Protocollo.CHI)); flush() }
+            val i = s.getInputStream(); val n = i.read(); val t = i.read()
+            if (n > 1 && t == Protocollo.SONO) { val b = ByteArray(n - 1); var k = 0; while (k < b.size) { val r = i.read(b, k, b.size - k); if (r < 0) break; k += r }; String(b, 0, k, Charsets.UTF_8) } else null
+        }
+    } catch (_: Exception) { null }
+
+    /** Prima parte dell'indirizzo (es. 192.168.1.) e il proprio numero, dal Wi-Fi attivo. */
+    fun reteLocale(c: android.content.Context): Pair<String, String>? {
+        val cm = c.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val lp = cm.getLinkProperties(cm.activeNetwork) ?: return null
+        val a = lp.linkAddresses.firstOrNull { it.address is java.net.Inet4Address }?.address?.hostAddress ?: return null
+        return a.substringBeforeLast('.') + "." to a
     }
 }
 

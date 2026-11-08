@@ -62,6 +62,7 @@ struct FMLABAltro: View {
     @AppStorage("FMLAB.rete") private var reteAccesa = true
     @State private var lingua = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String])?.first.map { $0.hasPrefix("it") ? "it" : $0.hasPrefix("en") ? "en" : "" } ?? ""
     @State private var ultima: String?
+    @State private var indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip
     private var versione: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?" }
     var body: some View {
         List {
@@ -80,8 +81,10 @@ struct FMLABAltro: View {
                 Toggle("Players 2–4 from Wi-Fi", isOn: $reteAccesa)
                     .onChange(of: reteAccesa) { acceso in if acceso { rete.avvia() } else { rete.ferma() } }
                 HStack { Label("Ready on Wi-Fi", systemImage: "wifi"); Spacer(); Text(rete.inAscolto ? LF("Yes") : LF("No")).foregroundColor(rete.inAscolto ? .green : .secondary) }
+                if let ip = indirizzo { HStack { Label("Address of this iPhone", systemImage: "number"); Spacer(); Text(ip).font(.body.monospacedDigit()).foregroundColor(.secondary).textSelection(.enabled) } }
                 ForEach(rete.giocatori) { g in HStack { Label(String(format: LF("Player %d"), g.id), systemImage: "gamecontroller"); Spacer(); Text(g.nome).foregroundColor(.secondary) } }
-                if let e = rete.errore { Text(e).font(.caption).foregroundColor(.orange) }
+                if let e = rete.errore, !rete.inAscolto { Text(e).font(.caption).foregroundColor(.orange) }
+                if rete.senzaBonjour && rete.inAscolto { Text("Automatic announcement is blocked here (LiveContainer): the other phone finds this iPhone by searching the Wi-Fi, or type the address above.").font(.caption).foregroundColor(.secondary) }
             } header: { Text("Play Together") } footer: {
                 Text("On the same Wi-Fi, a friend opens FMLAB Emulator (iPhone) or FMLAB Controller (Android) › Controller 2 and taps this iPhone: they become player 2, 3 or 4 of the game open here. Works with games made for two controllers on one console (SNES, PS1, NES…). The first time iOS asks for Local Network access: allow it.")
             }
@@ -96,7 +99,7 @@ struct FMLABAltro: View {
             } footer: { Text("No games or BIOS are included or downloaded by FMLAB: use your own copies.") }
         }
         .navigationTitle(LF("TV and More"))
-        .onAppear { FMLABInfo.ultimaVersione { ultima = $0 } }
+        .onAppear { FMLABInfo.ultimaVersione { ultima = $0 }; indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip; if reteAccesa { rete.avvia() } }
     }
 }
 

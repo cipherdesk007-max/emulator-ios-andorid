@@ -62,6 +62,7 @@ class MainActivity : Activity() {
         radice.addView(cercando)
         elenco = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         radice.addView(elenco)
+        radice.addView(bottone("↻  " + getString(R.string.cerca_ancora)) { trovati.clear(); disegnaElenco(); cercaNellaRete() })
         radice.addView(testo(getString(R.string.nota_partite), 13f, Color.GRAY).apply { setPadding(0, dp(6), 0, dp(20)) })
 
         radice.addView(testo(getString(R.string.con_indirizzo), 13f, rosso, true))
@@ -91,7 +92,7 @@ class MainActivity : Activity() {
                 is Evento.Perso -> mostraStato(if (e.motivo.isEmpty()) getString(R.string.perso) else getString(R.string.non_collegato, e.motivo))
             }
         }
-        cerca()
+        cerca(); cercaNellaRete()
     }
     override fun onPause() { super.onPause(); smetti() }
 
@@ -120,7 +121,23 @@ class MainActivity : Activity() {
         ricerca = l
         try { m.discoverServices(Protocollo.SERVIZIO, NsdManager.PROTOCOL_DNS_SD, l) } catch (_: Exception) { mostraStato(getString(R.string.ricerca_fallita)) }
     }
+    @Volatile private var giroScansione = 0
+    /** Funziona anche quando la ricerca automatica è bloccata (l'iPhone dentro LiveContainer non si annuncia). */
+    private fun cercaNellaRete() {
+        val (prefisso, mio) = Scansione.reteLocale(this) ?: return
+        val giro = ++giroScansione
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(40)
+        for (k in 1..254) {
+            val ip = prefisso + k; if (ip == mio) continue
+            pool.execute {
+                if (giro != giroScansione) return@execute
+                Scansione.prova(ip)?.let { nome -> runOnUiThread { if (trovati.values.none { it.indirizzo == ip || it.nome == nome }) { trovati[nome] = Trovato(nome, ip, Protocollo.PORTA); disegnaElenco() } } }
+            }
+        }
+        pool.shutdown()
+    }
     private fun smetti() {
+        giroScansione++
         ricerca?.let { try { nsd?.stopServiceDiscovery(it) } catch (_: Exception) { } }
         ricerca = null; daRisolvere.clear(); risolvendo = false
         multicast?.release(); multicast = null

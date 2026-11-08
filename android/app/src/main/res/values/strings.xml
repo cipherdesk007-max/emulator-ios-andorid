@@ -20,4 +20,5 @@
     <string name="esci_domanda">Leave the game? The other players keep playing.</string>
     <string name="esci">Leave</string>
     <string name="annulla">Cancel</string>
+    <string name="cerca_ancora">Search again</string>
 </resources>

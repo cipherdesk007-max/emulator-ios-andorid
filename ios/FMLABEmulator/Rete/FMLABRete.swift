@@ -4,6 +4,7 @@
 // è il modo di giocare in due dei giochi pensati per due controller sulla stessa console.
 // Protocollo (docs/PROTOCOLLO.md): TCP porta 47654 + Bonjour _fmlab-pad._tcp, messaggi [lunghezza u8][tipo u8][dati].
 import Foundation
+import Darwin
 import Network
 import UIKit
 
@@ -15,9 +16,28 @@ enum FMLABProtocollo {
     static let ciao: UInt8 = 0x01        // [versione][nome utf8]
     static let tasti: UInt8 = 0x02       // [tasti u16 LE][x i16 LE][y i16 LE]
     static let ping: UInt8 = 0x03
+    static let chi: UInt8 = 0x04         // "chi sei?" (ricerca senza Bonjour): risposta SONO, non diventa giocatore
     // host → cliente
     static let benvenuto: UInt8 = 0x81   // [giocatore u8 (0 = pieno)][disposizione u8][core: lunghezza u8 + utf8][titolo utf8]
     static let stato: UInt8 = 0x82       // come benvenuto, quando cambia il gioco
+    static let sono: UInt8 = 0x84        // [nome del telefono utf8]
+
+    /// Indirizzo IPv4 del Wi-Fi di questo telefono (en0), per farlo scrivere all'amico o per cercare nella rete.
+    static func indirizzoWiFi() -> (ip: String, maschera: UInt32, numero: UInt32)? {
+        var lista: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&lista) == 0, let prima = lista else { return nil }
+        defer { freeifaddrs(lista) }
+        var p: UnsafeMutablePointer<ifaddrs>? = prima
+        while let i = p {
+            defer { p = i.pointee.ifa_next }
+            guard String(cString: i.pointee.ifa_name) == "en0", let a = i.pointee.ifa_addr, a.pointee.sa_family == UInt8(AF_INET), let m = i.pointee.ifa_netmask else { continue }
+            let ind = a.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { UInt32(bigEndian: $0.pointee.sin_addr.s_addr) }
+            let mas = m.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { UInt32(bigEndian: $0.pointee.sin_addr.s_addr) }
+            let ip = "\(ind >> 24).\((ind >> 16) & 255).\((ind >> 8) & 255).\(ind & 255)"
+            return (ip, mas, ind)
+        }
+        return nil
+    }
 
     static func messaggio(_ tipo: UInt8, _ dati: [UInt8] = []) -> Data {
         var d = Data([UInt8(min(255, dati.count + 1)), tipo]); d.append(contentsOf: dati.prefix(254)); return d
@@ -60,19 +80,29 @@ final class FMLABRete: ObservableObject {
     // gioco aperto ora (per il cliente: titolo e tasti giusti)
     private var titolo = "", core = "", disposizione: UInt8 = 2
 
+    /// Senza Bonjour (rifiutato sotto LiveContainer: errore NoAuth) si ascolta lo stesso: i controller trovano il
+    /// telefono cercando nella rete o con l'indirizzo.
+    @Published private(set) var senzaBonjour = false
+    private var conBonjour = true
     func avvia() {
         coda.async { [self] in
             guard ascolto == nil, Self.acceso else { return }
+            let bonjour = conBonjour
             do {
                 let tcp = NWProtocolTCP.Options(); tcp.noDelay = true
                 let p = NWParameters(tls: nil, tcp: tcp); p.includePeerToPeer = false; p.allowLocalEndpointReuse = true
                 let l = try NWListener(using: p, on: NWEndpoint.Port(rawValue: FMLABProtocollo.porta)!)
-                l.service = NWListener.Service(name: UIDevice.current.name, type: FMLABProtocollo.servizio)
+                if bonjour { l.service = NWListener.Service(name: UIDevice.current.name, type: FMLABProtocollo.servizio) }
                 l.stateUpdateHandler = { [weak self] s in
                     guard let self else { return }
                     switch s {
-                    case .ready: self.pubblica { $0.inAscolto = true; $0.errore = nil }
-                    case .failed(let e): self.pubblica { $0.inAscolto = false; $0.errore = e.localizedDescription }; self.coda.async { self.ascolto?.cancel(); self.ascolto = nil }
+                    case .ready: self.pubblica { $0.inAscolto = true; $0.errore = nil; $0.senzaBonjour = !bonjour }
+                    case .failed(let e):
+                        self.coda.async {
+                            self.ascolto?.cancel(); self.ascolto = nil; self.giro?.cancel(); self.giro = nil
+                            if bonjour { self.conBonjour = false; self.avvia() }      // riprova senza annuncio
+                            else { self.pubblica { $0.inAscolto = false; $0.errore = e.localizedDescription } }
+                        }
                     case .cancelled: self.pubblica { $0.inAscolto = false }
                     default: break
                     }
@@ -144,6 +174,8 @@ final class FMLABRete: ObservableObject {
                         let t = UInt32(corpo[0]) | UInt32(corpo[1]) << 8
                         let x = Int16(bitPattern: UInt16(corpo[2]) | UInt16(corpo[3]) << 8), y = Int16(bitPattern: UInt16(corpo[4]) | UInt16(corpo[5]) << 8)
                         FMLABEmulatore.rete(porta: numero - 1, tasti: t, x: x, y: y); self.ultimoSegno[numero] = Date()
+                    case FMLABProtocollo.chi where numero == 0:
+                        c.send(content: FMLABProtocollo.messaggio(FMLABProtocollo.sono, FMLABProtocollo.utf8(UIDevice.current.name, max: 60)), completion: .contentProcessed { _ in })
                     case FMLABProtocollo.ping where numero > 0:
                         self.ultimoSegno[numero] = Date()
                         c.send(content: FMLABProtocollo.messaggio(FMLABProtocollo.ping), completion: .contentProcessed { _ in })
@@ -195,13 +227,72 @@ final class FMLABControllerRete: ObservableObject {
                 if case let .service(nome, _, _, _) = r.endpoint { return Partita(id: "\(r.endpoint)", nome: nome, punto: r.endpoint) }
                 return nil
             }.sorted { $0.nome < $1.nome }
-            DispatchQueue.main.async { self?.partite = p }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let daRete = self.partite.filter { vecchia in
+                    if case .hostPort = vecchia.punto { return !p.contains { $0.nome == vecchia.nome } }
+                    return false
+                }
+                self.partite = (p + daRete).sorted { $0.nome < $1.nome }
+            }
         }
-        b.stateUpdateHandler = { [weak self] s in if case .failed(let e) = s { DispatchQueue.main.async { self?.stato = .perso(e.localizedDescription) } } }
+        b.stateUpdateHandler = { _ in }      // Bonjour bloccato (NoAuth sotto LiveContainer): basta la ricerca nella rete
         b.start(queue: coda); cerca = b
+        cercaNellaRete()
         if case .fermo = stato { stato = .cerco }
     }
-    func smettiDiCercare() { cerca?.cancel(); cerca = nil }
+    func smettiDiCercare() { cerca?.cancel(); cerca = nil; scansione += 1 }
+
+    @Published private(set) var cercoNellaRete = false
+    private var scansione = 0
+    /// Prova tutti gli indirizzi del Wi-Fi (fino a 254) sulla porta di FMLAB: funziona anche dove Bonjour è
+    /// bloccato (LiveContainer, alcuni router). Chi risponde a CHI è un telefono con FMLAB Emulator.
+    func cercaNellaRete() {
+        guard let wifi = FMLABProtocollo.indirizzoWiFi() else { return }
+        let maschera = wifi.maschera, numero = wifi.numero
+        scansione += 1; let giro = scansione
+        let rete = numero & maschera, quanti = min(UInt32(254), ~maschera &- 1)
+        guard quanti > 0 else { return }
+        cercoNellaRete = true
+        let gruppo = DispatchGroup(), limite = DispatchSemaphore(value: 40)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            for k in 1...quanti {
+                let ip = rete | k
+                guard ip != numero, self?.scansione == giro else { continue }
+                limite.wait(); gruppo.enter()
+                let testo = "\(ip >> 24).\((ip >> 16) & 255).\((ip >> 8) & 255).\(ip & 255)"
+                self?.prova(testo) { nome in
+                    if let nome, let self { DispatchQueue.main.async {
+                        let punto = NWEndpoint.hostPort(host: NWEndpoint.Host(testo), port: NWEndpoint.Port(rawValue: FMLABProtocollo.porta)!)
+                        if !self.partite.contains(where: { $0.nome == nome || $0.id == testo }) { self.partite.append(Partita(id: testo, nome: nome, punto: punto)); self.partite.sort { $0.nome < $1.nome } }
+                    } }
+                    limite.signal(); gruppo.leave()
+                }
+            }
+            gruppo.notify(queue: .main) { [weak self] in if self?.scansione == giro { self?.cercoNellaRete = false } }
+        }
+    }
+    private func prova(_ ip: String, _ fatto: @escaping (String?) -> Void) {
+        let tcp = NWProtocolTCP.Options(); tcp.connectionTimeout = 2; tcp.noDelay = true
+        let c = NWConnection(host: NWEndpoint.Host(ip), port: NWEndpoint.Port(rawValue: FMLABProtocollo.porta)!, using: NWParameters(tls: nil, tcp: tcp))
+        var finito = false
+        let fine: (String?) -> Void = { n in self.coda.async { guard !finito else { return }; finito = true; c.cancel(); fatto(n) } }
+        c.stateUpdateHandler = { s in
+            switch s {
+            case .ready:
+                c.send(content: FMLABProtocollo.messaggio(FMLABProtocollo.chi), completion: .contentProcessed { _ in })
+                c.receive(minimumIncompleteLength: 2, maximumLength: 256) { d, _, _, _ in
+                    var b = d ?? Data()
+                    let m = FMLABProtocollo.estrai(&b).first { $0.0 == FMLABProtocollo.sono }
+                    fine(m.map { String(decoding: $0.1, as: UTF8.self) })
+                }
+            case .failed, .waiting, .cancelled: fine(nil)
+            default: break
+            }
+        }
+        c.start(queue: coda)
+        coda.asyncAfter(deadline: .now() + 2.5) { fine(nil) }
+    }
 
     func collega(_ punto: NWEndpoint) {
         stacca()

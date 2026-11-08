@@ -10,14 +10,15 @@ struct FMLABControllerView: View {
     var body: some View {
         List {
             Section {
-                if rete.partite.isEmpty {
-                    HStack(spacing: 12) { ProgressView(); Text("Looking for FMLAB Emulator on this Wi-Fi…").foregroundColor(.secondary) }
+                if rete.cercoNellaRete || rete.partite.isEmpty {
+                    HStack(spacing: 12) { if rete.cercoNellaRete { ProgressView() }; Text(rete.cercoNellaRete ? "Looking for FMLAB Emulator on this Wi-Fi…" : "Nothing found: open a game on the other iPhone, then search again.").foregroundColor(.secondary) }
                 }
                 ForEach(rete.partite) { p in
                     Button { rete.collega(p.punto) } label: {
                         HStack { Label(p.nome, systemImage: "iphone.gen3"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundColor(.secondary) }
                     }
                 }
+                Button { rete.cercaNellaRete() } label: { Label("Search Again", systemImage: "arrow.clockwise") }.disabled(rete.cercoNellaRete)
             } header: { Text("Games Nearby") } footer: {
                 Text("On the other iPhone open FMLAB Emulator and a game. Both phones on the same Wi-Fi; the first time iOS asks for Local Network access: allow it.")
             }
@@ -72,6 +73,7 @@ final class FMLABPadRemoto: UIViewController {
         pad.tasto = { [weak self] t, giu in self?.rete.tasto(t, premuto: giu) }
         pad.menu = { [weak self] in self?.chiediUscita() }
         pad.veloce = { _ in }        // l'avanti veloce lo decide solo il giocatore 1
+        pad.mostraVeloce = false
         view.addSubview(pad)
         rete.$stato.combineLatest(rete.$titolo, rete.$core, rete.$disposizione).receive(on: DispatchQueue.main).sink { [weak self] stato, titolo, core, disp in
             guard let self else { return }

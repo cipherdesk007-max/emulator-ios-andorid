@@ -263,8 +263,7 @@ struct FMLABRiquadroGioco: View {
             if let img = gioco.icona {
                 Image(uiImage: img).resizable().interpolation(img.size.width <= 64 ? .none : .medium).aspectRatio(contentMode: img.size.width <= 64 ? .fit : .fill)
             } else {
-                sigla.1
-                Text(sigla.0).font(.system(size: 13, weight: .heavy, design: .rounded)).foregroundColor(.white).minimumScaleFactor(0.6)
+                FMLABIconaConsole(core: gioco.core.nome, gbc: gioco.url.pathExtension.lowercased() == "gbc", lato: 48)
             }
             if gioco.inDownload { Color.black.opacity(0.45); Image(systemName: "icloud.and.arrow.down").foregroundColor(.white) }
         }
@@ -527,6 +526,7 @@ struct GameEmulatorView: View {
     @State private var daTogliere: FMLABGioco?
     @State private var errore: String?
     @State private var cercando = false
+    @State private var trasloco = false
     @State private var statoBIOS: [String: Bool] = [:]     // file -> impronta giusta
     @State private var controllando = false
     @State private var estraendo: String?
@@ -568,6 +568,7 @@ struct GameEmulatorView: View {
                         Text("Choose the folder where you keep your games (On My iPhone, iCloud Drive, a USB drive…): FMLAB reads them from there and sorts them by console. Or import single files, or put them in Files › FMLAB Emulator › Giochi. Zipped games (.zip, .7z, .rar) work as they are.").font(.callout).foregroundColor(.secondary)
                         Text("No games are included or downloaded by FMLAB: only use files you own or free homebrew.").font(.footnote).foregroundColor(.secondary)
                     }.padding(.vertical, 6)
+                    Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
                 }
             }
             if let n = estraendo { Section { HStack(spacing: 12) { ProgressView(); Text(String(format: LF("Opening the archive of %@…"), n)) } } }
@@ -625,6 +626,7 @@ struct GameEmulatorView: View {
                 Label("FMLAB Emulator › Giochi", systemImage: "folder.badge.gearshape").foregroundColor(.secondary)
                 Button { FMLABSceltaFile.apri(cartella: true) { aggiungiCartella($0.first) } } label: { Label("Choose Games Folder…", systemImage: "folder.badge.plus") }
                 Button { FMLABSceltaFile.apri(cartella: false) { importaFile($0) } } label: { Label("Import Games…", systemImage: "square.and.arrow.down") }
+                Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
             } header: { Text("Game Folders") } footer: {
                 Text("Your folders stay where they are: FMLAB only reads them. Swipe left to remove a folder from the list (the files are not touched). DS games show their own icon; for the others put a picture with the same name next to the game (e.g. Zelda.png beside Zelda.sfc) or in Giochi/Copertine.")
             }
@@ -682,9 +684,7 @@ struct GameEmulatorView: View {
                 ForEach(FMLABEmulatore.core(), id: \.nome) { c in
                     let quanti = giochi.filter { $0.core.nome == c.nome }.count
                     HStack(spacing: 12) {
-                        let sg = fmlabSigla(c.nome)
-                        Text(sg.0).font(.system(size: 11, weight: .heavy, design: .rounded)).foregroundColor(.white).minimumScaleFactor(0.6)
-                            .frame(width: 40, height: 40).background(sg.1).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        FMLABIconaConsole(core: c.nome, lato: 44)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack { Text(FMLABDati.nome(c)).font(.callout.weight(.semibold)); Spacer(); Text(quanti == 1 ? LF("1 game") : String(format: LF("%ld games"), quanti)).font(.caption).foregroundColor(.secondary) }
                             if let n = FMLABDati.nota(c) { Text(n).font(.caption).foregroundColor(.secondary) }
@@ -718,6 +718,7 @@ struct GameEmulatorView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Game Emulator")
+        .sheet(isPresented: $trasloco, onDismiss: { aggiorna(); controllaBIOS() }) { NavigationView { FMLABTraslocoView { trasloco = false } } }
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Menu {
             Button { FMLABSceltaFile.apri(cartella: true) { aggiungiCartella($0.first) } } label: { Label("Choose Games Folder…", systemImage: "folder.badge.plus") }
             Button { FMLABSceltaFile.apri(cartella: false) { importaFile($0) } } label: { Label("Import Games…", systemImage: "square.and.arrow.down") }
@@ -1580,6 +1581,8 @@ final class FMLABPad: UIView {
     private var trascinato: String?
     private var ultimoPunto: CGPoint = .zero
     var tasto: ((FMLABTasto, Bool) -> Void)?
+    /// Controller 2 dal Wi-Fi: niente avanti veloce (lo decide il giocatore 1).
+    var mostraVeloce = true { didSet { setNeedsLayout() } }
     var menu: (() -> Void)?
     var veloce: ((Bool) -> Void)?
     /// Con un controller collegato restano solo menu e avanti veloce.
@@ -1672,6 +1675,7 @@ final class FMLABPad: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        defer { if !mostraVeloce { bottoneVeloce.isHidden = true } }
         let w = bounds.width, h = bounds.height
         // misura dei comandi in proporzione allo schermo: iPhone SE/mini, Pro Max, iPad (anche in Split View)
         let lato0 = min(window?.bounds.width ?? w, window?.bounds.height ?? h)
