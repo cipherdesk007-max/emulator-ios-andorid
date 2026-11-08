@@ -43,40 +43,60 @@ final class FMLABScena: UIResponder, UIWindowSceneDelegate {
 
 struct FMLABHome: View {
     @State private var scheda = 0
+    @State private var trasloco = false
+    @Environment(\.scenePhase) private var fase
     var body: some View {
         TabView(selection: $scheda) {
             NavigationView { GameEmulatorView() }.navigationViewStyle(.stack)
                 .tabItem { Label("Games", systemImage: "gamecontroller.fill") }.tag(0)
             NavigationView { FMLABControllerView() }.navigationViewStyle(.stack)
                 .tabItem { Label("Controller 2", systemImage: "wifi") }.tag(1)
-            NavigationView { FMLABAltro() }.navigationViewStyle(.stack)
-                .tabItem { Label("TV and More", systemImage: "tv") }.tag(2)
+            NavigationView { FMLABImpostazioni() }.navigationViewStyle(.stack)
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }.tag(2)
         }
         .tint(Color(red: 0.9, green: 0.15, blue: 0.15))
+        .sheet(isPresented: $trasloco) { NavigationView { FMLABTraslocoView(chiudi: { trasloco = false }, avviaSubito: true) } }
+        .onAppear {
+            FMLABAggiornamento.shared.controlla()
+            // prima apertura: se FMLAB Linux è in LiveContainer, i giochi e i salvataggi si portano qui da soli
+            guard UserDefaults.standard.object(forKey: FMLABTrasloco.chiaveFatto) == nil, !UserDefaults.standard.bool(forKey: "FMLAB.trasloco.proposto") else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let t = FMLABTrasloco.cercaFMLABLinux()
+                DispatchQueue.main.async { if t != nil { UserDefaults.standard.set(true, forKey: "FMLAB.trasloco.proposto"); trasloco = true } }
+            }
+        }
+        .onChange(of: fase) { f in if f == .active { FMLABAggiornamento.shared.controlla() } }
     }
 }
 
-/// TV, Wi-Fi, lingua, versione.
-struct FMLABAltro: View {
+/// Tutte le impostazioni, in un posto solo e in ordine: app, giochi, comandi, grafica, TV, Wi-Fi, lingua.
+struct FMLABImpostazioni: View {
     @ObservedObject private var rete = FMLABRete.host
+    @ObservedObject private var agg = FMLABAggiornamento.shared
     @AppStorage("FMLAB.rete") private var reteAccesa = true
     @State private var lingua = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String])?.first.map { $0.hasPrefix("it") ? "it" : $0.hasPrefix("en") ? "en" : "" } ?? ""
-    @State private var ultima: String?
     @State private var indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip
-    private var versione: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?" }
+    @State private var trasloco = false
     var body: some View {
         List {
             Section {
-                HStack { Image("FMLABLogo").resizable().scaledToFit().frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 14))
-                    VStack(alignment: .leading) { Text("FMLAB Emulator").font(.headline); Text(String(format: LF("Version %@"), versione)).font(.caption).foregroundColor(.secondary) } }
-                if let u = ultima, u != versione {
-                    Button { UIPasteboard.general.string = FMLABInfo.linkIPA } label: { Label(String(format: LF("Version %@ is ready: copy the link for LiveContainer"), u), systemImage: "arrow.down.circle.fill") }
-                }
-            }
+                HStack(spacing: 14) {
+                    Image("FMLABLogo").resizable().scaledToFit().frame(width: 60, height: 60).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("FMLAB Emulator").font(.title3.weight(.bold))
+                        Text(String(format: LF("Version %@"), FMLABAggiornamento.attuale)).font(.caption).foregroundColor(.secondary)
+                        if agg.nuova == nil, agg.ultimoControllo != nil { Label("Up to date", systemImage: "checkmark.seal.fill").font(.caption).foregroundColor(.green) }
+                    }
+                    Spacer()
+                    if agg.controllando { ProgressView() } else { Button { agg.controlla(forza: true) } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless).accessibilityLabel(LF("Check for Updates")) }
+                }.padding(.vertical, 4)
+                Button { agg.aggiungiSorgente() } label: { Label("Add FMLAB to LiveContainer Sources", systemImage: "plus.app") }
+            } footer: { Text("The app checks for new versions by itself. With the source added, LiveContainer shows FMLAB updates in its Sources tab too.") }
+            FMLABAvvisoVersione()
             Section {
-                NavigationLink { FMLABGuidaTV(perGiochi: true) } label: { Label("Play on the TV…", systemImage: "airplayvideo") }
-                FMLABRigaAirPlay()
-            } header: { Text("TV") } footer: { Text("With Screen Mirroring or a USB-C/HDMI cable the TV shows only the game, in full screen, and the iPhone becomes the controller. Without a game open the TV shows the FMLAB logo.") }
+                Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
+            } header: { Text("Your Games") } footer: { Text("Finds FMLAB Linux on this iPhone by itself and brings games, saves and settings here. You can repeat it: only what is newer there is copied.") }
+            FMLABSezioniGioco()
             Section {
                 Toggle("Players 2–4 from Wi-Fi", isOn: $reteAccesa)
                     .onChange(of: reteAccesa) { acceso in if acceso { rete.avvia() } else { rete.ferma() } }
@@ -84,7 +104,6 @@ struct FMLABAltro: View {
                 if let ip = indirizzo { HStack { Label("Address of this iPhone", systemImage: "number"); Spacer(); Text(ip).font(.body.monospacedDigit()).foregroundColor(.secondary).textSelection(.enabled) } }
                 ForEach(rete.giocatori) { g in HStack { Label(String(format: LF("Player %d"), g.id), systemImage: "gamecontroller"); Spacer(); Text(g.nome).foregroundColor(.secondary) } }
                 if let e = rete.errore, !rete.inAscolto { Text(e).font(.caption).foregroundColor(.orange) }
-                if rete.senzaBonjour && rete.inAscolto { Text("Automatic announcement is blocked here (LiveContainer): the other phone finds this iPhone by searching the Wi-Fi, or type the address above.").font(.caption).foregroundColor(.secondary) }
             } header: { Text("Play Together") } footer: {
                 Text("On the same Wi-Fi, a friend opens FMLAB Emulator (iPhone) or FMLAB Controller (Android) › Controller 2 and taps this iPhone: they become player 2, 3 or 4 of the game open here. Works with games made for two controllers on one console (SNES, PS1, NES…). The first time iOS asks for Local Network access: allow it.")
             }
@@ -95,23 +114,12 @@ struct FMLABAltro: View {
                     }
             } footer: { Text("Takes effect the next time you open the app.") }
             Section {
-                Link(destination: URL(string: FMLABInfo.repo)!) { Label("Project on GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }
+                Link(destination: URL(string: FMLABAggiornamento.pagina)!) { Label("Project on GitHub", systemImage: "chevron.left.forwardslash.chevron.right") }
             } footer: { Text("No games or BIOS are included or downloaded by FMLAB: use your own copies.") }
         }
-        .navigationTitle(LF("TV and More"))
-        .onAppear { FMLABInfo.ultimaVersione { ultima = $0 }; indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip; if reteAccesa { rete.avvia() } }
-    }
-}
-
-enum FMLABInfo {
-    static let repo = "https://github.com/cipherdesk007-max/emulator-ios-andorid"
-    static let linkIPA = repo + "/releases/download/ultima/FMLAB-Emulator.ipa"
-    static func ultimaVersione(_ fatto: @escaping (String?) -> Void) {
-        var r = URLRequest(url: URL(string: repo + "/releases/download/ultima/VERSIONE.txt")!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
-        r.setValue("FMLAB-Emulator", forHTTPHeaderField: "User-Agent")
-        URLSession.shared.dataTask(with: r) { d, risposta, _ in
-            let v = (risposta as? HTTPURLResponse)?.statusCode == 200 ? d.flatMap { String(data: $0, encoding: .utf8) }?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
-            DispatchQueue.main.async { fatto(v?.count ?? 0 < 20 ? v : nil) }
-        }.resume()
+        .listStyle(.insetGrouped)
+        .navigationTitle(LF("Settings"))
+        .sheet(isPresented: $trasloco) { NavigationView { FMLABTraslocoView(chiudi: { trasloco = false }, avviaSubito: false) } }
+        .onAppear { indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip; if reteAccesa { rete.avvia() } }
     }
 }

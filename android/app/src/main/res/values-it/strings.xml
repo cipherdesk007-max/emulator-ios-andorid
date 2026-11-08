@@ -21,4 +21,9 @@
     <string name="esci">Esci</string>
     <string name="annulla">Annulla</string>
     <string name="cerca_ancora">Cerca di nuovo</string>
+    <string name="nuova_versione">È uscito FMLAB Controller %1$s</string>
+    <string name="nuova_versione_nota">Tocca Aggiorna: Android la installa sopra questa versione, non si perde niente.</string>
+    <string name="aggiorna">Aggiorna</string>
+    <string name="scarico">Scarico… %1$d%%</string>
+    <string name="aggiornamento_fallito">Aggiornamento non riuscito: %1$s</string>
 </resources>

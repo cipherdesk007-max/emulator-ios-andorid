@@ -32,6 +32,8 @@ class MainActivity : Activity() {
     private lateinit var stato: TextView
     private lateinit var cercando: LinearLayout
     private lateinit var campo: EditText
+    private lateinit var avvisoVersione: LinearLayout
+    private var versioneNuova: String? = null
     private var nsd: NsdManager? = null
     private var ricerca: NsdManager.DiscoveryListener? = null
     private var multicast: WifiManager.MulticastLock? = null
@@ -53,6 +55,9 @@ class MainActivity : Activity() {
         radice.addView(testo(getString(R.string.app_name), 26f, Color.WHITE, true).apply { gravity = Gravity.CENTER })
         radice.addView(testo(getString(R.string.sottotitolo), 15f, Color.LTGRAY).apply { gravity = Gravity.CENTER; setPadding(0, dp(4), 0, dp(18)) })
 
+        avvisoVersione = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(Color.rgb(40, 18, 18)); setStroke(dp(1), rosso) } }
+        radice.addView(avvisoVersione, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(18) })
         radice.addView(testo(getString(R.string.partite_vicine), 13f, rosso, true))
         cercando = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(10), 0, dp(10))
@@ -93,6 +98,22 @@ class MainActivity : Activity() {
             }
         }
         cerca(); cercaNellaRete()
+        val attuale = packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
+        Aggiornamento.controlla(attuale) { v -> if (v != null) mostraVersione(v) }
+    }
+
+    private fun mostraVersione(v: String) {
+        if (versioneNuova == v) return
+        versioneNuova = v
+        avvisoVersione.removeAllViews(); avvisoVersione.visibility = View.VISIBLE
+        avvisoVersione.addView(testo(getString(R.string.nuova_versione, v), 17f, Color.WHITE, true))
+        avvisoVersione.addView(testo(getString(R.string.nuova_versione_nota), 13f, Color.LTGRAY).apply { setPadding(0, dp(4), 0, 0) })
+        val tasto = bottone(getString(R.string.aggiorna)) {}
+        tasto.setOnClickListener {
+            tasto.isEnabled = false
+            Aggiornamento.installa(this, v, { p -> tasto.text = getString(R.string.scarico, p) }) { e -> tasto.isEnabled = true; tasto.text = getString(R.string.aggiorna); mostraStato(getString(R.string.aggiornamento_fallito, e)) }
+        }
+        avvisoVersione.addView(tasto)
     }
     override fun onPause() { super.onPause(); smetti() }
 

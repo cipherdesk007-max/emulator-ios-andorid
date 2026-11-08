@@ -1,6 +1,24 @@
 # FMLAB Emulator: novità
 
-## 0.1.1
+## 0.2.0
+- **I giochi di FMLAB Linux arrivano da soli**. Dentro LiveContainer ogni app ha la sua cartella dati, una accanto
+  all'altra: FMLAB Emulator trova quella di FMLAB Linux e alla prima apertura porta qui tutto, senza far aprire
+  cartelle.
+  - I giochi si spostano, quindi niente spazio doppio.
+  - Si copiano: salvataggi con Riprendi, stati, copie datate, BIOS, copertine, posizioni dei tasti, grafica e nomi
+    scelti. FMLAB Linux tiene i salvataggi come riserva.
+  - Anche le cartelle di giochi collegate in FMLAB Linux arrivano qui: dentro LiveContainer il permesso di iOS
+    vale anche qui.
+  - Si può ripetere da Impostazioni › I tuoi giochi: si copia solo quello che lì è più nuovo.
+- **Impostazioni in un posto solo**: nuova scheda Impostazioni, in questo ordine: app e aggiornamenti, i tuoi
+  giochi, comandi e salvataggi, BIOS, grafica, TV, copie, console, dati del motore, Wi-Fi, lingua. La scheda
+  Giochi ha solo i giochi.
+- **Aggiornamenti dall'app**:
+  - iPhone: l'app vede da sola le versioni nuove e mostra le novità. *Aggiorna adesso* passa l'IPA a
+    LiveContainer (`livecontainer://install`), che installa sopra senza perdere niente. Si può anche aggiungere
+    la sorgente FMLAB alle Sorgenti di LiveContainer (`apps.json` in ogni release).
+  - Android: *Aggiorna* scarica l'APK e lo installa con l'installatore di Android, sopra la versione vecchia.
+
 - **Porta qui i giochi da FMLAB Linux**, in Giochi e in Cartelle dei giochi. Scegli la cartella Giochi di FMLAB
   Linux; va bene anche la cartella dell'app o Documents. Si copiano:
   - i giochi;

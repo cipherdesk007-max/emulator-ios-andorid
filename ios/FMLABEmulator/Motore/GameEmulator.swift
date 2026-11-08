@@ -558,6 +558,7 @@ struct GameEmulatorView: View {
 
     var body: some View {
         List {
+            FMLABAvvisoVersione()
             if FMLABEmulatore.core().isEmpty {
                 Section { Text("This build of FMLAB Emulator has no emulators inside. Update the app from the latest release.").foregroundColor(.orange) }
             }
@@ -630,94 +631,9 @@ struct GameEmulatorView: View {
             } header: { Text("Game Folders") } footer: {
                 Text("Your folders stay where they are: FMLAB only reads them. Swipe left to remove a folder from the list (the files are not touched). DS games show their own icon; for the others put a picture with the same name next to the game (e.g. Zelda.png beside Zelda.sfc) or in Giochi/Copertine.")
             }
-            Section {
-                Toggle(isOn: $sopra) { VStack(alignment: .leading, spacing: 3) { Text("Bigger Screen"); Text("The game takes all the space it can and the controls sit on top, see-through (above all on DS and in landscape).").font(.caption).foregroundColor(.secondary) } }
-                Picker("Controls Size", selection: $scala) { Text("Small").tag(0.85); Text("Normal").tag(1.0); Text("Large").tag(1.2) }
-                VStack(alignment: .leading) { Text("Controls Opacity"); Slider(value: $opacita, in: 0.3...1) }
-                Toggle("Vibration", isOn: $vibra)
-                Picker("Fast Forward Speed", selection: $velocita) { Text("2×").tag(2.0); Text("3×").tag(3.0); Text("4×").tag(4.0) }
-                Toggle(isOn: $copertine) { VStack(alignment: .leading, spacing: 3) { Text("Automatic Covers"); Text("Box art from the public libretro-thumbnails collection, found by file name (standard names like \"Super Mario World (USA)\").").font(.caption).foregroundColor(.secondary) } }
-                Toggle(isOn: $mischia) { VStack(alignment: .leading, spacing: 3) { Text("Keep Music from Other Apps"); Text("Off: opening a game pauses Spotify and other music, like a real game does.").font(.caption).foregroundColor(.secondary) } }
-                Toggle(isOn: $riprendi) { VStack(alignment: .leading, spacing: 3) { Text("Resume Where I Left Off"); Text("When you quit a game it is saved; next time you can continue from there.").font(.caption).foregroundColor(.secondary) } }
-            } header: { Text("Controls and Saves") }
-            if !FMLABDati.bios.isEmpty {
-                Section {
-                    ForEach(FMLABDati.bios, id: \.self) { b in
-                        let nome = b["file"] ?? ""
-                        HStack {
-                            Image(systemName: statoBIOS[nome] == true ? "checkmark.seal.fill" : statoBIOS[nome] == false ? "exclamationmark.triangle.fill" : "circle.dashed")
-                                .foregroundColor(statoBIOS[nome] == true ? .green : statoBIOS[nome] == false ? .orange : .secondary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(nome).font(.callout.monospaced())
-                                Text(b[UserDefaults.standard.string(forKey: "FMLAB.lingua") == "it" ? "it" : "en"] ?? "").font(.caption).foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                } header: { Text("BIOS (optional)") } footer: {
-                    Text("Put your own BIOS files in Files › FMLAB Emulator › Giochi › BIOS. A green seal means the file is the right one (checked by its fingerprint); orange means a file with that name is there but it is different.")
-                }
-            }
-            Section {
-                Toggle(isOn: $graficaMigliorata) { VStack(alignment: .leading, spacing: 3) { Text("Enhanced Graphics"); Text("DS 3D and PlayStation at double resolution, SNES Mode 7 in HD. Turn it off if a game slows down.").font(.caption).foregroundColor(.secondary) } }
-                Picker("Picture", selection: $filtro) {
-                    Text("Sharp Pixels").tag("netti"); Text("Smooth").tag("morbido"); Text("TV (scanlines)").tag("tv"); Text("Handheld LCD").tag("lcd")
-                }
-                Toggle(isOn: $gpu) { VStack(alignment: .leading, spacing: 3) { Text("Graphics on the GPU (PSP)"); Text("The 3D is drawn by the iPhone's graphics chip: faster and sharper (2× with Enhanced Graphics). Turn it off only if a game shows broken graphics.").font(.caption).foregroundColor(.secondary) } }
-                Picker("Shape in Landscape", selection: $formato) {
-                    Text("Original").tag("originale"); Text("Wide 16:9").tag("largo"); Text("Fill the Screen").tag("pieno")
-                }
-            } header: { Text("Graphics") } footer: { Text("Sharp Pixels is the most faithful; TV draws the lines of an old television, LCD the grid of a Game Boy screen. Valid from the next game you open. Original keeps the real shape of the console; Wide and Fill stretch the picture in landscape (no black bars, round things look a bit oval).") }
-            Section {
-                Toggle("Use the External Screen for Games", isOn: $usaEsterno)
-                HStack { Label("External screen", systemImage: "tv"); Spacer(); Text(schermoEsterno ?? LF("None")).foregroundColor(schermoEsterno == nil ? .secondary : .green) }
-                NavigationLink { FMLABGuidaTV(perGiochi: true) } label: { Label("Play on the TV…", systemImage: "airplayvideo") }
-            } header: { Text("AirPlay and TV") } footer: {
-                Text("The AirPlay button (sound only) sends just the audio, like music: the picture stays on the iPhone. iOS lets only Screen Mirroring in Control Center send the picture, or a USB-C/HDMI cable. On DS the iPhone keeps the screens for touch.")
-            }
-            Section {
-                Button { FMLABCopia.esporta { errore = $0 } } label: { Label("Export Backup…", systemImage: "square.and.arrow.up") }
-                Button { FMLABSceltaFile.apri(cartella: true) { u in if let u = u.first { errore = FMLABCopia.ripristina(da: u); aggiorna(); controllaBIOS() } } } label: { Label("Restore Backup…", systemImage: "arrow.counterclockwise") }
-            } header: { Text("Backup") } footer: {
-                Text("A folder with your game saves, states, BIOS, covers and Game Emulator settings, to keep in Files or iCloud or to move to another iPhone. Games are not included.")
-            }
-            Section {
-                ForEach(FMLABEmulatore.core(), id: \.nome) { c in
-                    let quanti = giochi.filter { $0.core.nome == c.nome }.count
-                    HStack(spacing: 12) {
-                        FMLABIconaConsole(core: c.nome, lato: 44)
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack { Text(FMLABDati.nome(c)).font(.callout.weight(.semibold)); Spacer(); Text(quanti == 1 ? LF("1 game") : String(format: LF("%ld games"), quanti)).font(.caption).foregroundColor(.secondary) }
-                            if let n = FMLABDati.nota(c) { Text(n).font(.caption).foregroundColor(.secondary) }
-                            Text(c.estensioni.map { "." + $0 }.joined(separator: " ")).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)
-                        }
-                    }.padding(.vertical, 2)
-                }
-            } header: { Text("Consoles") } footer: {
-                Text("Native emulators (libretro cores), no JIT needed. Saves go to Giochi/Salvataggi; BIOS files, if a console needs them, go to Giochi/BIOS. On-screen controls follow the rotation; game controllers and hardware keyboards work too.")
-            }
-            Section {
-                HStack { Text("Version"); Spacer(); Text(versioneDati).font(.callout.monospaced()).foregroundColor(.secondary) }
-                HStack {
-                    Text("Last check"); Spacer()
-                    Text(FMLABDati.ultimoControllo.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .short) } ?? LF("Never")).foregroundColor(.secondary)
-                }
-                if !FMLABDati.esito.isEmpty {
-                    let e = FMLABDati.esito
-                    Label(LF(e == "nuovi" ? "Updated from fmlab-retro" : e == "uguali" ? "Already up to date" : e == "disponibili" ? "New data ready: tap Update Now above" : e == "scartati" ? "The downloaded data was not valid and was ignored" : "No connection: using the saved copy"),
-                          systemImage: e == "nuovi" || e == "uguali" ? "checkmark.circle.fill" : e == "disponibili" ? "sparkles" : "exclamationmark.triangle.fill")
-                        .foregroundColor(e == "nuovi" || e == "uguali" ? .green : e == "disponibili" ? .accentColor : .orange).font(.callout)
-                }
-                Button {
-                    controllando = true
-                    rimandato = false
-                    FMLABDati.aggiorna(forza: true) { controllando = false; inAttesa = FMLABDati.inAttesaVersione }
-                } label: { HStack { Label("Check Now", systemImage: "arrow.triangle.2.circlepath"); if controllando { Spacer(); ProgressView() } } }.disabled(controllando)
-            } header: { Text("Engine Data") } footer: {
-                Text("Extensions, emulator options, BIOS list and notices come from fmlab-retro (dati/emulatore.json), without a new app: when there is something new FMLAB asks before using it, then cleans up files that are no longer needed. The emulators themselves arrive with app updates.")
-            }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Game Emulator")
+        .navigationTitle(LF("Games"))
         .sheet(isPresented: $trasloco, onDismiss: { aggiorna(); controllaBIOS() }) { NavigationView { FMLABTraslocoView { trasloco = false } } }
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Menu {
             Button { FMLABSceltaFile.apri(cartella: true) { aggiungiCartella($0.first) } } label: { Label("Choose Games Folder…", systemImage: "folder.badge.plus") }
@@ -727,6 +643,7 @@ struct GameEmulatorView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)) { _ in DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { schermoEsterno = FMLABGiocoController.nomeSchermoEsterno() } }
         .onAppear { schermoEsterno = FMLABGiocoController.nomeSchermoEsterno(); aggiorna(); controllaBIOS(); inAttesa = FMLABDati.inAttesaVersione; FMLABDati.aggiorna { inAttesa = FMLABDati.inAttesaVersione } }
         .onChange(of: fase) { f in if f == .active { FMLABDati.aggiorna { inAttesa = FMLABDati.inAttesaVersione } } }
+        .onReceive(NotificationCenter.default.publisher(for: .fmlabRicarica)) { _ in cartelle = FMLABCartellaGiochi.tutte(); inAttesa = FMLABDati.inAttesaVersione; versioneDati = FMLABDati.versione; aggiorna(); controllaBIOS() }
         .refreshable { rimandato = false; FMLABDati.aggiorna(forza: true) { inAttesa = FMLABDati.inAttesaVersione }; aggiorna(); controllaBIOS() }
         .fullScreenCover(item: $inGioco) { gioco in FMLABGiocoSchermo(gioco: gioco).ignoresSafeArea() }
         .alert(String(format: LF("Delete %@?"), daTogliere?.nome ?? ""), isPresented: Binding(get: { daTogliere != nil }, set: { if !$0 { daTogliere = nil } })) {
@@ -841,7 +758,7 @@ struct GameEmulatorView: View {
             }
             var visti = Set<String>()
             tutti = tutti.filter { visti.insert($0.url.standardizedFileURL.path).inserted }
-            DispatchQueue.main.async { giochi = tutti; cercando = false; FMLABCopertine.cerca(tutti) { aggiorna() } }
+            DispatchQueue.main.async { giochi = tutti; cercando = false; FMLABLibreria.shared.aggiorna(tutti); FMLABCopertine.cerca(tutti) { aggiorna() } }
         }
     }
 }

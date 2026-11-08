@@ -21,4 +21,9 @@
     <string name="esci">Leave</string>
     <string name="annulla">Cancel</string>
     <string name="cerca_ancora">Search again</string>
+    <string name="nuova_versione">FMLAB Controller %1$s is out</string>
+    <string name="nuova_versione_nota">Tap Update: Android installs it over this version, nothing is lost.</string>
+    <string name="aggiorna">Update</string>
+    <string name="scarico">Downloading… %1$d%%</string>
+    <string name="aggiornamento_fallito">Update failed: %1$s</string>
 </resources>
