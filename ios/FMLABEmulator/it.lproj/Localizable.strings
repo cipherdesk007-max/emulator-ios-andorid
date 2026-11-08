@@ -2056,3 +2056,14 @@
 "Quality: Original" = "Qualità: originale";
 "Quality: Enhanced" = "Qualità: migliorata";
 "Quality: Maximum" = "Qualità: massima";
+"Come back to FMLAB Emulator and leave it open." = "Torna su FMLAB Emulator e lascialo aperto.";
+"Fix It" = "Come sistemarlo";
+"Open Control Center › Screen Mirroring › Stop Mirroring." = "Apri il Centro di Controllo › Duplica schermo › Interrompi duplicazione.";
+"Start Screen Mirroring again and choose your TV: now iOS gives the game its own screen (the TV turns black with Waiting for the game)." = "Riavvia Duplica schermo e scegli la TV: ora iOS dà al gioco uno schermo suo (la TV diventa nera con «In attesa del gioco»).";
+"Try Again Without Stopping" = "Riprova senza interrompere";
+"Waiting for the game…" = "In attesa del gioco…";
+"iOS decides it only when mirroring starts. FMLAB Linux works the same way. If you use Fire TV or another TV with an AirPlay receiver app, it works the same as Apple TV." = "iOS lo decide solo quando parte la duplicazione. FMLAB Linux funziona allo stesso modo. Con la Fire TV o un'altra TV con un'app ricevitore AirPlay funziona come con l'Apple TV.";
+"The TV is ready for the game" = "La TV è pronta per il gioco";
+"The TV is copying the iPhone" = "La TV sta copiando l'iPhone";
+"The TV shows Waiting for the game: open a game, it goes there and the iPhone becomes the controller." = "La TV mostra «In attesa del gioco»: apri un gioco, va lì e l'iPhone diventa il controller.";
+"iOS chose to copy the whole phone, because Screen Mirroring started before FMLAB asked for its own TV screen." = "iOS ha scelto di copiare tutto il telefono, perché Duplica schermo è partita prima che FMLAB chiedesse il suo schermo per la TV.";

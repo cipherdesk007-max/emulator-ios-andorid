@@ -899,6 +899,14 @@ final class FMLABGiocoController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(controllaSuonoTV), name: AVAudioSession.routeChangeNotification, object: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.controllaSuonoTV() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.collegaEsterno() }
+        // la TV copia il telefono (Duplica schermo partita prima): si riprova, poi si spiega come sistemarlo
+        if FMLABTV.shared.soloDuplicazione {
+            FMLABTV.shared.riprova()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                guard let self, FMLABTV.shared.soloDuplicazione, !Self.spiegatoDuplicazione else { return }
+                Self.spiegatoDuplicazione = true; self.emulatore?.inPausa = true; self.spiegaTV()
+            }
+        }
         guard let e = emulatore else { apriMenu(); return }
         // giocatori 2…4 dal Wi-Fi: sanno quale gioco è aperto e che tasti mostrare
         FMLABRete.host.gioco(titolo: gioco.nome, core: gioco.core.nome, disposizione: e.disposizione)
@@ -1448,7 +1456,7 @@ final class FMLABGiocoController: UIViewController {
         Console: \(gioco.core.console) · core \(gioco.core.nome)
         File: .\(gioco.url.pathExtension) · \(dim) · \(gioco.cartella == nil ? "Giochi" : "cartella collegata")
         Dati del motore: \(FMLABDati.versione)
-        Schermo esterno: \(Self.nomeSchermoEsterno() ?? "nessuno") · usato: \(esterno != nil ? "sì" : "no") · iOS 27: \(FMLABTV.shared.statoAccessorio) · giocatori in rete: \(FMLABRete.host.giocatori.count)
+        Schermo esterno: \(Self.nomeSchermoEsterno() ?? "nessuno") · usato: \(esterno != nil ? "sì" : "no") · \(FMLABTV.shared.diagnosi) · giocatori in rete: \(FMLABRete.host.giocatori.count)
         Errore: \(avviso.text ?? "-")
         """
     }
@@ -1489,6 +1497,7 @@ final class FMLABGiocoController: UIViewController {
     }
     /// Il suono è andato su una TV AirPlay ma l'immagine no (manca Duplica schermo): lo si dice, una volta.
     private var avvisatoSoloSuono = false
+    private static var spiegatoDuplicazione = false
     @objc private func controllaSuonoTV() {
         let airplay = AVAudioSession.sharedInstance().currentRoute.outputs.contains { $0.portType == .airPlay }
         guard airplay, esterno == nil, !avvisatoSoloSuono else { return }

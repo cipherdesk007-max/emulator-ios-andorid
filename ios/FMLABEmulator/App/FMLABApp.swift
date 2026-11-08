@@ -34,7 +34,10 @@ final class FMLABScena: UIResponder, UIWindowSceneDelegate {
         // subito, prima che parta Duplica schermo: su iOS 27 è ora che si chiede lo schermo separato
         FMLABTV.shared.registra(radice)
     }
-    func sceneDidBecomeActive(_ scene: UIScene) { FMLABRete.host.avvia() }
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        FMLABRete.host.avvia()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { FMLABTV.shared.riprova() }
+    }
     func sceneDidEnterBackground(_ scene: UIScene) {
         // in sottofondo iOS chiude comunque le prese: si spegne pulito, così i controller vedono subito il distacco
         FMLABRete.host.ferma()

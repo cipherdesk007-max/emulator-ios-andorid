@@ -39,6 +39,23 @@ final class FMLABTV {
         return String(format: LF("Connected · %.0f×%.0f"), m.width * k, m.height * k)
     }
 
+    /// Duplica schermo è attiva ma iOS non ci ha dato lo schermo separato (copia il telefono).
+    var soloDuplicazione: Bool { scena == nil && UIScreen.screens.count > 1 }
+    /// Stato leggibile (Impostazioni › TV e Copia rapporto): serve per capire cosa fa iOS.
+    var diagnosi: String {
+        let ruoli = UIApplication.shared.connectedScenes.map { $0.session.role.rawValue.replacingOccurrences(of: "UIWindowSceneSessionRole", with: "") }.sorted().joined(separator: ", ")
+        return "iOS 27: \(statoAccessorio) · scena TV: \(scena != nil ? "sì" : "no") · schermi: \(UIScreen.screens.count) · scene: \(ruoli)"
+    }
+    private var ultimaRiprova = Date.distantPast
+    /// iOS decide "schermo separato o copia" quando parte Duplica schermo. Se è partita prima che l'app chiedesse lo
+    /// schermo (es. aperta mentre si duplicava già), si spegne e si riaccende la richiesta: a volte iOS ci ripensa.
+    func riprova() {
+        guard soloDuplicazione, Self.accesa, let p = principale, Date().timeIntervalSince(ultimaRiprova) > 4 else { return }
+        ultimaRiprova = Date()
+        FMLABAbilitaSchermoEsterno(p, false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { FMLABAbilitaSchermoEsterno(p, Self.accesa); self.avvisa() }
+    }
+
     /// Chiamata appena c'è la finestra principale: su iOS 27 è il momento di chiedere lo schermo separato.
     func registra(_ controller: UIViewController) {
         principale = controller
@@ -103,7 +120,7 @@ final class FMLABTVController: UIViewController {
         logo.contentMode = .scaleAspectFit
         testo.numberOfLines = 0; testo.textAlignment = .center; testo.textColor = UIColor(white: 0.85, alpha: 1)
         testo.font = .systemFont(ofSize: 30, weight: .medium)
-        testo.text = LF("Open a game on the iPhone: the TV shows only the game, the iPhone becomes the controller.")
+        testo.text = LF("Waiting for the game…") + "\n\n" + LF("Open a game on the iPhone: the TV shows only the game, the iPhone becomes the controller.")
         attesa.addSubview(logo); attesa.addSubview(testo)
         view.addSubview(attesa)
         giocatori.textColor = .white; giocatori.font = .systemFont(ofSize: 22, weight: .semibold)

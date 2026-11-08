@@ -50,23 +50,35 @@ struct FMLABGuidaTV: View {
     var perGiochi = true
     var chiudi: (() -> Void)? = nil
     @State private var duplica = false
+    @State private var separato = false
+    @State private var diagnosi = ""
     @State private var suono = ""
     private let giro = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private func aggiorna() {
-        duplica = UIScreen.screens.count > 1 || UIApplication.shared.connectedScenes.contains { ($0.session.role.rawValue).contains("ExternalDisplay") }
+        separato = FMLABTV.shared.scena != nil
+        duplica = separato || UIScreen.screens.count > 1
+        diagnosi = FMLABTV.shared.diagnosi
         suono = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portName }.joined(separator: ", ")
     }
     var body: some View {
         List {
             Section {
                 HStack(spacing: 12) {
-                    Image(systemName: duplica ? "checkmark.circle.fill" : "rectangle.on.rectangle").font(.title2).foregroundColor(duplica ? .green : .accentColor)
+                    Image(systemName: separato ? "checkmark.circle.fill" : duplica ? "exclamationmark.triangle.fill" : "rectangle.on.rectangle").font(.title2).foregroundColor(separato ? .green : duplica ? .orange : .accentColor)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(duplica ? "Screen Mirroring is on" : "Screen Mirroring is off").font(.headline)
-                        Text(duplica ? "Open a game: the TV shows only the game, the iPhone is the controller." : "The TV gets the picture only with Screen Mirroring.").font(.callout).foregroundColor(.secondary)
+                        Text(separato ? "The TV is ready for the game" : duplica ? "The TV is copying the iPhone" : "Screen Mirroring is off").font(.headline)
+                        Text(separato ? "The TV shows Waiting for the game: open a game, it goes there and the iPhone becomes the controller." : duplica ? "iOS chose to copy the whole phone, because Screen Mirroring started before FMLAB asked for its own TV screen." : "The TV gets the picture only with Screen Mirroring.").font(.callout).foregroundColor(.secondary)
                     }
                 }.padding(.vertical, 4)
                 if !suono.isEmpty { HStack { Label("Sound", systemImage: "speaker.wave.2"); Spacer(); Text(suono).foregroundColor(.secondary) } }
+            }
+            if duplica && !separato {
+                Section {
+                    Label("Open Control Center › Screen Mirroring › Stop Mirroring.", systemImage: "1.circle.fill")
+                    Label("Come back to FMLAB Emulator and leave it open.", systemImage: "2.circle.fill")
+                    Label("Start Screen Mirroring again and choose your TV: now iOS gives the game its own screen (the TV turns black with Waiting for the game).", systemImage: "3.circle.fill")
+                    Button { FMLABTV.shared.riprova(); DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { aggiorna() } } label: { Label("Try Again Without Stopping", systemImage: "arrow.clockwise") }
+                } header: { Text("Fix It") } footer: { Text("iOS decides it only when mirroring starts. FMLAB Linux works the same way. If you use Fire TV or another TV with an AirPlay receiver app, it works the same as Apple TV.") }
             }
             if !duplica {
                 Section {
@@ -79,6 +91,7 @@ struct FMLABGuidaTV: View {
             }
             Section {
                 FMLABRigaAirPlay()
+                Text(diagnosi).font(.caption2.monospaced()).foregroundColor(.secondary).textSelection(.enabled)
             } footer: { Text("Sends only the sound (like music from Spotify): the picture stays on the iPhone.") }
         }
         .navigationTitle(LF("Play on the TV"))

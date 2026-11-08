@@ -1,6 +1,16 @@
 # FMLAB Emulator: novità
 
-## 0.3.0
+## 0.3.1
+- **TV**: iOS decide "schermo separato o copia del telefono" solo quando parte Duplica schermo. Se la
+  duplicazione era già accesa prima di aprire FMLAB (per esempio dopo FMLAB Linux), la TV copiava tutto il
+  telefono.
+  - Ora l'app se ne accorge e riprova da sola a chiedere lo schermo separato.
+  - Se iOS non cambia idea, apre la guida con i tre passi: ferma Duplica schermo, torna su FMLAB, riavviala.
+  - La guida dice lo stato vero: "La TV è pronta per il gioco" oppure "La TV sta copiando l'iPhone". Prima
+    bastava una duplicazione qualsiasi per la spunta verde.
+  - In fondo alla guida e in *Copia rapporto* c'è la diagnosi: accessorio iOS 27, scena TV, schermi, scene.
+- Sulla TV in attesa: "In attesa del gioco…", come "in attesa del desktop" di FMLAB Linux.
+
 - **Icone e titoli dei giochi PSP**: letti dal gioco come fa la PSP (ICON0.PNG e PARAM.SFO), da .iso, .cso
   compressi e .pbp; anche le icone dei PS1 in formato .pbp. Le icone larghe si vedono intere.
 - **Grafica**:
