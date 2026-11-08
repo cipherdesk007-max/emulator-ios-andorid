@@ -49,6 +49,8 @@ typedef NS_ENUM(NSInteger, FMLABTasto) {
 
 /// Giocatore in rete (Controller 2…4 dal Wi-Fi): porta libretro 1…3 (0 = giocatore 1), tasti a bit (FMLABTasto),
 /// levetta sinistra da -32767 a 32767. Si può chiamare da qualunque filo.
+/// Pixel art HD: le immagini piccole (giochi 2D) si ingrandiscono 4× con Scale2x prima di arrivare allo schermo.
++ (void)usaPixelHD:(BOOL)si NS_SWIFT_NAME(usaPixelHD(_:));
 + (void)reteGiocatore:(NSInteger)porta tasti:(uint32_t)tasti levettaX:(int16_t)x y:(int16_t)y NS_SWIFT_NAME(rete(porta:tasti:x:y:));
 
 - (nullable instancetype)initConCore:(FMLABCore *)core gioco:(NSString *)gioco error:(NSError **)error NS_SWIFT_NAME(init(conCore:gioco:));

@@ -1,6 +1,24 @@
 # FMLAB Emulator: novità
 
-## 0.2.0
+## 0.3.0
+- **Icone e titoli dei giochi PSP**: letti dal gioco come fa la PSP (ICON0.PNG e PARAM.SFO), da .iso, .cso
+  compressi e .pbp; anche le icone dei PS1 in formato .pbp. Le icone larghe si vedono intere.
+- **Grafica**:
+  - *Qualità*: Originale, Migliorata o Massima. Massima vuol dire DS 3×, PSP 3×, SNES Mode 7 4×, PS1 2×.
+  - *Massima sulla TV*: con la TV collegata il gioco sale da solo a Massima.
+  - *Pixel art HD*: NES, Game Boy, GBA e SNES ingranditi 4× con Scale2x a ogni fotogramma, con bordi puliti
+    invece degli scalini.
+  - *Aspetto retrò*:
+    - texture HD della PSP (xBRZ) e filtro anisotropico 16×;
+    - colori veri delle portatili (GB Color, GBA);
+    - scia LCD;
+    - colori del Game Boy (automatici, verde classico, Pocket, Light, grigio);
+    - colori del NES (naturali, console vera, Classic Mini).
+- **Avanti veloce senza suono gracchiante**: di base è muto; si può scegliere *Accelerato*.
+- **Turbo**: menu del gioco › *Tieni premuto o turbo*. Il tasto si preme e si rilascia da solo circa 8 volte al
+  secondo, così i dialoghi vanno avanti da soli.
+- Tolto il trasferimento da FMLAB Linux (fatto).
+
 - **I giochi di FMLAB Linux arrivano da soli**. Dentro LiveContainer ogni app ha la sua cartella dati, una accanto
   all'altra: FMLAB Emulator trova quella di FMLAB Linux e alla prima apertura porta qui tutto, senza far aprire
   cartelle.

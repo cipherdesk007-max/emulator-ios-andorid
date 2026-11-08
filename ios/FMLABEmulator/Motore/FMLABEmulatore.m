@@ -254,7 +254,10 @@ static void fmlabVideo(const void *data, unsigned w, unsigned h, size_t pitch) {
     os_unfair_lock_unlock(&G_lockImmagine);
 }
 
+static _Atomic bool G_mutoVeloce;   // avanti veloce senza suono (Impostazioni › Suono con l'avanti veloce)
+static _Atomic bool G_pixelHD;      // Pixel art HD: Scale2x due volte (4×) sui giochi 2D, poi immagine morbida
 static size_t fmlabSuoni(const int16_t *data, size_t frames) {
+    if (atomic_load(&G_mutoVeloce)) return frames;   // si butta: niente suono accelerato e gracchiante
     uint32_t s = atomic_load(&G_scrivi), l = atomic_load(&G_leggi);
     size_t liberi = FMLAB_ANELLO - 1 - (size_t)(s - l);
     if (frames > liberi) frames = liberi;   // pieno: si perde un pezzetto invece di rallentare
@@ -306,6 +309,23 @@ static int16_t fmlabStato(unsigned port, unsigned device, unsigned index, unsign
     return 0;
 }
 
+#pragma mark - Pixel art HD (Scale2x / EPX)
+// Raddoppia l'immagine guardando i vicini: le diagonali dei pixel diventano linee pulite invece di scalini.
+// Due passate = 4×; poi il layer la allarga in modo morbido. Solo per immagini piccole (console 2D).
+static void fmlabScale2x(const uint32_t *in, unsigned w, unsigned h, uint32_t *out) {
+    for (unsigned y = 0; y < h; y++) {
+        const uint32_t *r0 = in + (size_t)(y ? y - 1 : 0) * w, *r1 = in + (size_t)y * w, *r2 = in + (size_t)(y + 1 < h ? y + 1 : y) * w;
+        uint32_t *o0 = out + (size_t)(2 * y) * (2 * w), *o1 = o0 + 2 * w;
+        for (unsigned x = 0; x < w; x++) {
+            uint32_t P = r1[x], A = r0[x], D = r2[x], C = r1[x ? x - 1 : 0], B = r1[x + 1 < w ? x + 1 : x];
+            if (C == A && C != D && A != B) o0[2 * x] = A; else o0[2 * x] = P;
+            if (A == B && A != C && B != D) o0[2 * x + 1] = B; else o0[2 * x + 1] = P;
+            if (D == C && D != B && C != A) o1[2 * x] = C; else o1[2 * x] = P;
+            if (B == D && B != A && D != C) o1[2 * x + 1] = D; else o1[2 * x + 1] = P;
+        }
+    }
+}
+
 #pragma mark - Vista
 
 @interface FMLABVistaGioco : UIView
@@ -346,6 +366,12 @@ static int16_t fmlabStato(unsigned port, unsigned device, unsigned index, unsign
     NSData *copia = [NSData dataWithBytes:G_pixel length:(size_t)w * h * 4];
     G_nuova = NO;
     os_unfair_lock_unlock(&G_lockImmagine);
+    if (atomic_load(&G_pixelHD) && w <= 320 && h <= 256) {
+        NSMutableData *due = [NSMutableData dataWithLength:(size_t)w * h * 16], *quattro = [NSMutableData dataWithLength:(size_t)w * h * 64];
+        fmlabScale2x(copia.bytes, w, h, due.mutableBytes);
+        fmlabScale2x(due.bytes, w * 2, h * 2, quattro.mutableBytes);
+        copia = quattro; w *= 4; h *= 4;
+    }
     CGDataProviderRef dati = CGDataProviderCreateWithCFData((__bridge CFDataRef)copia);
     CGColorSpaceRef spazio = CGColorSpaceCreateDeviceRGB();
     CGImageRef img = CGImageCreate(w, h, 8, 32, w * 4, spazio, kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst, dati, NULL, false, kCGRenderingIntentDefault);
@@ -371,6 +397,7 @@ static int16_t fmlabStato(unsigned port, unsigned device, unsigned index, unsign
 static __weak FMLABEmulatore *G_attivo;
 
 @implementation FMLABEmulatore {
+    BOOL _veloceInterno;
     FMLABCore *_core;
     NSString *_gioco, *_nomeGioco;
     NSData *_datiGioco;
@@ -388,6 +415,13 @@ static __weak FMLABEmulatore *G_attivo;
     BOOL _inAttesa, _copiaInSospeso;   // salvataggio visto, si aspetta che il gioco finisca di scrivere
     int _dopoCaricamento;         // controlli da ignorare come "salvataggio nel gioco" dopo aver caricato uno stato
     NSURL *_ripristino;           // copia da rimettere dopo la chiusura
+}
++ (void)usaPixelHD:(BOOL)si { atomic_store(&G_pixelHD, si); }
+- (BOOL)veloce { return _veloceInterno; }
+- (void)setVeloce:(BOOL)veloce {
+    _veloceInterno = veloce;
+    NSString *s = [NSUserDefaults.standardUserDefaults stringForKey:@"FMLAB.veloce.suono"] ?: @"muto";
+    atomic_store(&G_mutoVeloce, veloce && ![s isEqual:@"accelerato"]);
 }
 + (void)reteGiocatore:(NSInteger)porta tasti:(uint32_t)tasti levettaX:(int16_t)x y:(int16_t)y {
     if (porta < 0 || porta >= FMLAB_PORTE) return;
@@ -629,7 +663,7 @@ static NSError *fmlabErrore(NSString *messaggio) {
     G_croceAnalogica = [core.nome isEqual:@"ppsspp"];
     G_hwAttivo = NO; memset(&G_hw, 0, sizeof G_hw);
     G_formato = RETRO_PIXEL_FORMAT_0RGB1555; G_statoAudio = NULL; atomic_store(&G_vibra, 0);
-    atomic_store(&G_tasti, 0); atomic_store(&G_tastiController, 0); atomic_store(&G_ptocco, 0);
+    atomic_store(&G_tasti, 0); atomic_store(&G_tastiController, 0); atomic_store(&G_mutoVeloce, false); atomic_store(&G_ptocco, 0);
     atomic_store(&G_scrivi, 0); atomic_store(&G_leggi, 0);
     os_unfair_lock_lock(&G_lockImmagine); G_nuova = NO; G_w = G_h = 0; os_unfair_lock_unlock(&G_lockImmagine);
 

@@ -30,7 +30,14 @@ struct FMLABSezioniGioco: View {
     @AppStorage("FMLAB.riprendi") private var riprendi = true
     @AppStorage("FMLAB.veloce.velocita") private var velocita = 3.0
     @AppStorage("FMLAB.comandi.sopra") private var sopra = true
-    @AppStorage("FMLAB.grafica.migliorata") private var graficaMigliorata = true
+    @AppStorage("FMLAB.grafica.qualita") private var qualita = (UserDefaults.standard.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true) ? "migliorata" : "originale"
+    @AppStorage("FMLAB.grafica.tvMassima") private var tvMassima = true
+    @AppStorage("FMLAB.grafica.textureHD") private var textureHD = false
+    @AppStorage("FMLAB.grafica.coloriLCD") private var coloriLCD = true
+    @AppStorage("FMLAB.grafica.sciaLCD") private var sciaLCD = false
+    @AppStorage("FMLAB.grafica.paletteGB") private var paletteGB = "auto"
+    @AppStorage("FMLAB.grafica.paletteNES") private var paletteNES = "smooth-fbx"
+    @AppStorage("FMLAB.veloce.suono") private var suonoVeloce = "muto"
     @AppStorage("FMLAB.grafica.filtro") private var filtro = "netti"
     @AppStorage("FMLAB.grafica.formato") private var formato = "originale"
     @AppStorage("FMLAB.grafica.gpu") private var gpu = true
@@ -46,6 +53,7 @@ struct FMLABSezioniGioco: View {
                 VStack(alignment: .leading) { Text("Controls Opacity"); Slider(value: $opacita, in: 0.3...1) }
                 Toggle("Vibration", isOn: $vibra)
                 Picker("Fast Forward Speed", selection: $velocita) { Text("2×").tag(2.0); Text("3×").tag(3.0); Text("4×").tag(4.0) }
+                Picker("Sound in Fast Forward", selection: $suonoVeloce) { Text("Muted").tag("muto"); Text("Sped Up").tag("accelerato") }
                 Toggle(isOn: $copertine) { VStack(alignment: .leading, spacing: 3) { Text("Automatic Covers"); Text("Box art from the public libretro-thumbnails collection, found by file name (standard names like \"Super Mario World (USA)\").").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $mischia) { VStack(alignment: .leading, spacing: 3) { Text("Keep Music from Other Apps"); Text("Off: opening a game pauses Spotify and other music, like a real game does.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $riprendi) { VStack(alignment: .leading, spacing: 3) { Text("Resume Where I Left Off"); Text("When you quit a game it is saved; next time you can continue from there.").font(.caption).foregroundColor(.secondary) } }
@@ -68,15 +76,27 @@ struct FMLABSezioniGioco: View {
                 }
             }
             Section {
-                Toggle(isOn: $graficaMigliorata) { VStack(alignment: .leading, spacing: 3) { Text("Enhanced Graphics"); Text("DS 3D and PlayStation at double resolution, SNES Mode 7 in HD. Turn it off if a game slows down.").font(.caption).foregroundColor(.secondary) } }
+                Picker("Quality", selection: $qualita) { Text("Original").tag("originale"); Text("Enhanced").tag("migliorata"); Text("Maximum").tag("massima") }
+                Toggle(isOn: $tvMassima) { VStack(alignment: .leading, spacing: 3) { Text("Maximum on the TV"); Text("With Enhanced chosen, a game opened with the TV connected goes to Maximum: the TV is big and the iPhone only has to emulate.").font(.caption).foregroundColor(.secondary) } }
                 Picker("Picture", selection: $filtro) {
-                    Text("Sharp Pixels").tag("netti"); Text("Smooth").tag("morbido"); Text("TV (scanlines)").tag("tv"); Text("Handheld LCD").tag("lcd")
+                    Text("Sharp Pixels").tag("netti"); Text("Pixel Art HD").tag("hd"); Text("Smooth").tag("morbido"); Text("TV (scanlines)").tag("tv"); Text("Handheld LCD").tag("lcd")
                 }
                 Toggle(isOn: $gpu) { VStack(alignment: .leading, spacing: 3) { Text("Graphics on the GPU (PSP)"); Text("The 3D is drawn by the iPhone's graphics chip: faster and sharper (2× with Enhanced Graphics). Turn it off only if a game shows broken graphics.").font(.caption).foregroundColor(.secondary) } }
                 Picker("Shape in Landscape", selection: $formato) {
                     Text("Original").tag("originale"); Text("Wide 16:9").tag("largo"); Text("Fill the Screen").tag("pieno")
                 }
             } header: { Text("Graphics") } footer: { Text("Sharp Pixels is the most faithful; TV draws the lines of an old television, LCD the grid of a Game Boy screen. Valid from the next game you open. Original keeps the real shape of the console; Wide and Fill stretch the picture in landscape (no black bars, round things look a bit oval).") }
+            Section {
+                Toggle(isOn: $textureHD) { VStack(alignment: .leading, spacing: 3) { Text("HD Textures (PSP)"); Text("Redraws the game textures at double size with xBRZ: sharper writing and surfaces. The first seconds of a new area can stutter while they are made.").font(.caption).foregroundColor(.secondary) } }
+                Toggle(isOn: $coloriLCD) { VStack(alignment: .leading, spacing: 3) { Text("True Handheld Colours (GB Color, GBA)"); Text("The colours as they looked on the real screen, not the over-bright raw ones.").font(.caption).foregroundColor(.secondary) } }
+                Toggle(isOn: $sciaLCD) { VStack(alignment: .leading, spacing: 3) { Text("LCD Trail (GB, GBA)"); Text("Blends one frame into the next like the old screens: transparencies and flickering sprites look right.").font(.caption).foregroundColor(.secondary) } }
+                Picker("Game Boy Colours", selection: $paletteGB) {
+                    Text("Automatic (Super Game Boy / Color)").tag("auto"); Text("Classic Green").tag("dmg"); Text("Pocket").tag("pocket"); Text("Light").tag("light"); Text("Grey").tag("grigio")
+                }
+                Picker("NES Colours", selection: $paletteNES) {
+                    Text("Natural (Smooth FBX)").tag("smooth-fbx"); Text("Real Console (NESCAP)").tag("nescap"); Text("Classic Mini").tag("nes-classic-fbx-fs"); Text("Emulator Default").tag("default")
+                }
+            } header: { Text("Retro Look") } footer: { Text("Pixel Art HD (in Picture) enlarges NES, Game Boy, GBA and SNES 4× with Scale2x: clean edges instead of steps, then soft. Valid from the next game you open.") }
             Section {
                 Toggle("Use the External Screen for Games", isOn: $usaEsterno)
                 HStack { Label("External screen", systemImage: "tv"); Spacer(); Text(schermoEsterno ?? LF("None")).foregroundColor(schermoEsterno == nil ? .secondary : .green) }

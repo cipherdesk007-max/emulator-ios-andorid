@@ -105,7 +105,9 @@ enum FMLABIcona {
             let f = d.appendingPathComponent(base).appendingPathExtension(e)
             if let img = UIImage(contentsOfFile: f.path) { return img }
         } }
-        return core == "desmume" ? ds(url) : nil
+        if core == "desmume" { return ds(url) }
+        if core == "ppsspp" || (core == "pcsx_rearmed" && url.pathExtension.lowercased() == "pbp") { return FMLABPSP.leggi(url)?.icona }
+        return nil
     }
     /// Titolo del gioco: DS dal banner (italiano se l'app è in italiano, se no inglese), GBA e SNES dall'intestazione.
     static func titolo(_ url: URL, core: String) -> String? {
@@ -128,6 +130,8 @@ enum FMLABIcona {
             let t = (righe.count > 1 ? righe.dropLast() : righe[...]).joined(separator: " ")
             return t.isEmpty ? nil : t
         case "mgba": return leggi(0xA0, 12).flatMap(ascii)
+        case "ppsspp": return FMLABPSP.leggi(url)?.titolo
+        case "pcsx_rearmed": return url.pathExtension.lowercased() == "pbp" ? FMLABPSP.leggi(url)?.titolo : nil
         case "bsnes":
             let dim = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             let base: UInt64 = dim % 1024 == 512 ? 512 : 0   // intestazione dei copiatori
@@ -261,7 +265,8 @@ struct FMLABRiquadroGioco: View {
     var body: some View {
         ZStack {
             if let img = gioco.icona {
-                Image(uiImage: img).resizable().interpolation(img.size.width <= 64 ? .none : .medium).aspectRatio(contentMode: img.size.width <= 64 ? .fit : .fill)
+                let largo = img.size.width > img.size.height * 1.3   // icone PSP (144×80): intere, non tagliate
+                Image(uiImage: img).resizable().interpolation(img.size.width <= 64 ? .none : .medium).aspectRatio(contentMode: img.size.width <= 64 || largo ? .fit : .fill)
             } else {
                 FMLABIconaConsole(core: gioco.core.nome, gbc: gioco.url.pathExtension.lowercased() == "gbc", lato: 48)
             }
@@ -526,7 +531,6 @@ struct GameEmulatorView: View {
     @State private var daTogliere: FMLABGioco?
     @State private var errore: String?
     @State private var cercando = false
-    @State private var trasloco = false
     @State private var statoBIOS: [String: Bool] = [:]     // file -> impronta giusta
     @State private var controllando = false
     @State private var estraendo: String?
@@ -569,7 +573,6 @@ struct GameEmulatorView: View {
                         Text("Choose the folder where you keep your games (On My iPhone, iCloud Drive, a USB drive…): FMLAB reads them from there and sorts them by console. Or import single files, or put them in Files › FMLAB Emulator › Giochi. Zipped games (.zip, .7z, .rar) work as they are.").font(.callout).foregroundColor(.secondary)
                         Text("No games are included or downloaded by FMLAB: only use files you own or free homebrew.").font(.footnote).foregroundColor(.secondary)
                     }.padding(.vertical, 6)
-                    Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
                 }
             }
             if let n = estraendo { Section { HStack(spacing: 12) { ProgressView(); Text(String(format: LF("Opening the archive of %@…"), n)) } } }
@@ -627,14 +630,12 @@ struct GameEmulatorView: View {
                 Label("FMLAB Emulator › Giochi", systemImage: "folder.badge.gearshape").foregroundColor(.secondary)
                 Button { FMLABSceltaFile.apri(cartella: true) { aggiungiCartella($0.first) } } label: { Label("Choose Games Folder…", systemImage: "folder.badge.plus") }
                 Button { FMLABSceltaFile.apri(cartella: false) { importaFile($0) } } label: { Label("Import Games…", systemImage: "square.and.arrow.down") }
-                Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
             } header: { Text("Game Folders") } footer: {
                 Text("Your folders stay where they are: FMLAB only reads them. Swipe left to remove a folder from the list (the files are not touched). DS games show their own icon; for the others put a picture with the same name next to the game (e.g. Zelda.png beside Zelda.sfc) or in Giochi/Copertine.")
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(LF("Games"))
-        .sheet(isPresented: $trasloco, onDismiss: { aggiorna(); controllaBIOS() }) { NavigationView { FMLABTraslocoView { trasloco = false } } }
         .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Menu {
             Button { FMLABSceltaFile.apri(cartella: true) { aggiungiCartella($0.first) } } label: { Label("Choose Games Folder…", systemImage: "folder.badge.plus") }
             Button { FMLABSceltaFile.apri(cartella: false) { importaFile($0) } } label: { Label("Import Games…", systemImage: "square.and.arrow.down") }
@@ -813,6 +814,8 @@ final class FMLABGiocoController: UIViewController {
     private var giroDS: CADisplayLink?
     private var filtroPer: CGSize = .zero
     private var tenuto: FMLABTasto?          // "tieni premuto": un tasto sempre giù (es. correre)
+    private var turbo: FMLABTasto?           // "turbo": il tasto si preme e si rilascia da solo (dialoghi che vanno avanti)
+    private var giroTurbo: Timer?
     deinit { osservatori.forEach { NotificationCenter.default.removeObserver($0) } }
 
     init(gioco: FMLABGioco, chiudi: @escaping () -> Void) { self.gioco = gioco; self.chiudi = chiudi; super.init(nibName: nil, bundle: nil); modalPresentationStyle = .fullScreen }
@@ -828,8 +831,9 @@ final class FMLABGiocoController: UIViewController {
         view.backgroundColor = .black
         accessoCartella = gioco.cartella?.startAccessingSecurityScopedResource() ?? false
         // grafica migliorata: opzioni dei core sopra a quelle dei dati (si possono spegnere nella scheda Giochi)
-        let hd = UserDefaults.standard.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true
-        FMLABEmulatore.usaOpzioniUtente(Self.opzioniUtente(hd: hd))
+        FMLABEmulatore.usaOpzioniUtente(Self.opzioniUtente(qualita: Self.qualita(conTV: FMLABTV.shared.area != nil)))
+        let f0 = UserDefaults.standard.string(forKey: "FMLAB.grafica.filtro") ?? "netti"
+        FMLABEmulatore.usaPixelHD(f0 == "hd" && Self.console2D.contains(gioco.core.nome))
         do {
             let e = try FMLABEmulatore(conCore: gioco.core, gioco: gioco.url.path)
             emulatore = e
@@ -922,7 +926,7 @@ final class FMLABGiocoController: UIViewController {
         present(m, animated: true)
     }
     override func viewWillDisappear(_ animated: Bool) {
-        FMLABRete.host.gioco(titolo: nil, core: "", disposizione: 2); reteOsservata = nil
+        FMLABRete.host.gioco(titolo: nil, core: "", disposizione: 2); reteOsservata = nil; fermaTenuti()
         super.viewWillDisappear(animated); giroFPS?.invalidate(); giroFPS = nil; emulatore?.ferma(); staccaEsterno(); segnaInCorso(false); giroDS?.invalidate(); giroDS = nil
         if accessoCartella { gioco.cartella?.stopAccessingSecurityScopedResource(); accessoCartella = false }
     }
@@ -991,13 +995,13 @@ final class FMLABGiocoController: UIViewController {
         l.contents = v.layer.contents
         let d = UserDefaults.standard, forma = d.string(forKey: "FMLAB.grafica.formato") ?? "originale"
         let filtro = d.string(forKey: "FMLAB.grafica.filtro") ?? "netti"
-        l.magnificationFilter = filtro == "morbido" ? .linear : .nearest
+        l.magnificationFilter = Self.morbido(filtro) ? .linear : .nearest
         let ds = emulatore?.tocco == true, b = e.bounds
         var r = max(0.3, emulatore?.rapporto ?? 4.0 / 3.0)
         if !ds && forma == "largo" { r = max(r, 16.0 / 9.0) } else if !ds && forma == "pieno" { r = b.width / max(1, b.height) }
         var w = b.width, h = w / r; if h > b.height { h = b.height; w = h * r }
         // pixel tutti uguali anche sulla TV (es. 240 righe × 4 = 960 su una TV 1080p), se si perde al massimo il 15%
-        if !ds && forma == "originale" && filtro != "morbido", let righe = emulatore?.misuraImmagine.height, righe >= 100 {
+        if !ds && forma == "originale" && !Self.morbido(filtro), let righe = emulatore?.misuraImmagine.height, righe >= 100 {
             let base = righe >= 400 ? righe / 2 : righe, sc = e.window?.screen.scale ?? 1
             let n = floor(h * sc / base)
             if n >= 1, n * base / sc >= h * 0.85 { h = n * base / sc; w = h * r }
@@ -1121,10 +1125,44 @@ final class FMLABGiocoController: UIViewController {
                                  "pcsx_rearmed_neon_enhancement_enable": "disabled", "pcsx_rearmed_neon_enhancement_no_main": "disabled",
                                  "pcsx_rearmed_dithering": "enabled", "ppsspp_internal_resolution": "480x272"]
     /// Opzioni scelte dall'utente: grafica migliorata e, per la PSP, il disegno sulla GPU (OpenGL ES) o in software.
-    static func opzioniUtente(hd: Bool) -> [String: String] {
-        var o = hd ? opzioniHD : ["ppsspp_internal_resolution": "480x272"]
-        let gpu = UserDefaults.standard.object(forKey: "FMLAB.grafica.gpu") as? Bool ?? true
+    static let opzioniMassime = ["desmume_internal_resolution": "768x576", "bsnes_mode7_scale": "4x",
+                                 "pcsx_rearmed_neon_enhancement_enable": "enabled", "pcsx_rearmed_neon_enhancement_no_main": "enabled",
+                                 "pcsx_rearmed_dithering": "disabled", "ppsspp_internal_resolution": "1440x816"]
+    /// Console 2D a cui si può applicare Pixel art HD.
+    static let console2D: Set<String> = ["fceumm", "gambatte", "mgba", "bsnes"]
+    static func morbido(_ filtro: String) -> Bool { filtro == "morbido" || filtro == "hd" }
+    /// Qualità scelta: originale, migliorata, massima (con la TV collegata si può salire da soli a massima).
+    static func qualita(conTV: Bool = false) -> String {
+        let d = UserDefaults.standard
+        var q = d.string(forKey: "FMLAB.grafica.qualita") ?? ((d.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true) ? "migliorata" : "originale")
+        if conTV && q == "migliorata" && (d.object(forKey: "FMLAB.grafica.tvMassima") as? Bool ?? true) { q = "massima" }
+        return q
+    }
+    /// Opzioni dei core scelte dall'utente: qualità, PSP sulla GPU e texture HD, colori e scia LCD, tavolozze.
+    static func opzioniUtente(qualita q: String) -> [String: String] {
+        let d = UserDefaults.standard
+        var o = q == "massima" ? opzioniMassime : q == "migliorata" ? opzioniHD : opzioniNormali
+        let gpu = d.object(forKey: "FMLAB.grafica.gpu") as? Bool ?? true
         o["ppsspp_backend"] = gpu ? "opengl" : "none"
+        o["ppsspp_texture_anisotropic_filtering"] = gpu ? "16x" : "off"
+        let tex = d.bool(forKey: "FMLAB.grafica.textureHD")
+        o["ppsspp_texture_scaling_level"] = tex ? "2x" : "disabled"
+        o["ppsspp_texture_scaling_type"] = "xbrz"
+        o["ppsspp_texture_deposterize"] = tex ? "enabled" : "disabled"
+        let colori = d.object(forKey: "FMLAB.grafica.coloriLCD") as? Bool ?? true
+        o["mgba_color_correction"] = colori ? "Auto" : "OFF"
+        o["gambatte_gbc_color_correction"] = colori ? "GBC only" : "disabled"
+        let scia = d.bool(forKey: "FMLAB.grafica.sciaLCD")
+        o["mgba_interframe_blending"] = scia ? "mix_smart" : "OFF"
+        o["gambatte_mix_frames"] = scia ? "mix" : "disabled"
+        switch d.string(forKey: "FMLAB.grafica.paletteGB") ?? "auto" {
+        case "dmg": o["gambatte_gb_colorization"] = "internal"; o["gambatte_gb_internal_palette"] = "GB - DMG"
+        case "pocket": o["gambatte_gb_colorization"] = "internal"; o["gambatte_gb_internal_palette"] = "GB - Pocket"
+        case "light": o["gambatte_gb_colorization"] = "internal"; o["gambatte_gb_internal_palette"] = "GB - Light"
+        case "grigio": o["gambatte_gb_colorization"] = "disabled"
+        default: o["gambatte_gb_colorization"] = "auto"
+        }
+        o["fceumm_palette"] = d.string(forKey: "FMLAB.grafica.paletteNES") ?? "smooth-fbx"
         return o
     }
     /// Menu del gioco › Immagine…: filtro, forma e grafica migliorata cambiano subito, senza uscire dal gioco.
@@ -1132,13 +1170,13 @@ final class FMLABGiocoController: UIViewController {
         guard let e = emulatore else { return }
         let d = UserDefaults.standard
         let filtro = d.string(forKey: "FMLAB.grafica.filtro") ?? "netti", forma = d.string(forKey: "FMLAB.grafica.formato") ?? "originale"
-        let hd = d.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true
+        let q = Self.qualita()
         let m = UIAlertController(title: LF("Picture"), message: LF("Changes right away. Shape applies in landscape."), preferredStyle: .actionSheet)
         func voce(_ t: String, _ scelto: Bool, _ fai: @escaping () -> Void) {
             m.addAction(UIAlertAction(title: (scelto ? "✓ " : "") + t, style: .default) { [weak self] _ in
                 fai(); self?.filtroPer = .zero; self?.view.setNeedsLayout(); self?.view.layoutIfNeeded(); e.inPausa = false })
         }
-        for (k, t) in [("netti", "Sharp Pixels"), ("morbido", "Smooth"), ("tv", "TV (scanlines)"), ("lcd", "Handheld LCD")] {
+        for (k, t) in [("netti", "Sharp Pixels"), ("hd", "Pixel Art HD"), ("morbido", "Smooth"), ("tv", "TV (scanlines)"), ("lcd", "Handheld LCD")] {
             voce(LF(t), filtro == k) { d.set(k, forKey: "FMLAB.grafica.filtro") }
         }
         if !e.tocco {
@@ -1147,11 +1185,13 @@ final class FMLABGiocoController: UIViewController {
             }
         }
         if ["desmume", "bsnes", "pcsx_rearmed", "ppsspp"].contains(gioco.core.nome) {
-            voce(LF("Enhanced Graphics"), hd) {
-                d.set(!hd, forKey: "FMLAB.grafica.migliorata")
-                let o = !hd ? Self.opzioniHD : Self.opzioniNormali
-                FMLABEmulatore.usaOpzioniUtente(Self.opzioniUtente(hd: !hd))
-                for (k, v) in o where k.hasPrefix(self.gioco.core.nome.components(separatedBy: "_")[0]) { e.opzione(k, valore: v) }
+            for (k, t) in [("originale", "Quality: Original"), ("migliorata", "Quality: Enhanced"), ("massima", "Quality: Maximum")] {
+                voce(LF(t), q == k) {
+                    d.set(k, forKey: "FMLAB.grafica.qualita")
+                    let o = Self.opzioniUtente(qualita: k)
+                    FMLABEmulatore.usaOpzioniUtente(o)
+                    for (c, v) in o where c.hasPrefix(self.gioco.core.nome.components(separatedBy: "_")[0]) { e.opzione(c, valore: v) }
+                }
             }
         }
         m.addAction(UIAlertAction(title: LF("Cancel"), style: .cancel) { _ in e.inPausa = false })
@@ -1189,7 +1229,7 @@ final class FMLABGiocoController: UIViewController {
         // immagini doppie (PlayStation in HD o in alta risoluzione): si misura sulla base, così la misura non salta
         // quando il gioco passa da un filmato 320×240 al 3D 640×480
         if righe >= 400 { righe /= 2 }
-        guard f != "morbido", righe >= 100 else { return h }
+        guard !Self.morbido(f), righe >= 100 else { return h }
         let n = floor(h * sc / righe)
         guard n >= 1 else { return h }
         let nuova = n * righe / sc
@@ -1254,7 +1294,8 @@ final class FMLABGiocoController: UIViewController {
     private func aggiornaFiltro() {
         guard let e = emulatore else { return }
         let f = UserDefaults.standard.string(forKey: "FMLAB.grafica.filtro") ?? "netti"
-        e.vista.layer.magnificationFilter = f == "morbido" ? .linear : .nearest
+        e.vista.layer.magnificationFilter = Self.morbido(f) ? .linear : .nearest
+        FMLABEmulatore.usaPixelHD(f == "hd" && Self.console2D.contains(gioco.core.nome))
         secondoSchermo.layer.magnificationFilter = e.vista.layer.magnificationFilter
         filtroVista.frame = e.vista.frame
         let m = e.misuraImmagine
@@ -1297,7 +1338,8 @@ final class FMLABGiocoController: UIViewController {
             carica.isEnabled = (1...3).contains { e.dataStato($0) != nil }
             m.addAction(carica)
             m.addAction(UIAlertAction(title: LF("Take Screenshot"), style: .default) { [weak self] _ in e.inPausa = false; self?.fotografa() })
-            m.addAction(UIAlertAction(title: tenuto == nil ? LF("Hold a Button…") : String(format: LF("Release %@"), nomeTasto(tenuto!)), style: .default) { [weak self] _ in self?.scegliTenuto() })
+            let attivo = tenuto ?? turbo
+            m.addAction(UIAlertAction(title: attivo == nil ? LF("Hold or Turbo…") : String(format: LF("Release %@"), nomeTasto(attivo!)), style: .default) { [weak self] _ in self?.scegliTenuto() })
             m.addAction(UIAlertAction(title: LF("Picture…"), style: .default) { [weak self] _ in self?.scegliImmagine() })
             m.addAction(UIAlertAction(title: LF("Move Buttons…"), style: .default) { [weak self] _ in self?.pad.modifica = true })
             let fpsSi = UserDefaults.standard.bool(forKey: "FMLAB.mostraFPS")
@@ -1363,15 +1405,29 @@ final class FMLABGiocoController: UIViewController {
         let file = cartella.appendingPathComponent("\(gioco.nome) \(f.string(from: Date())).png")
         do { try png.write(to: file); mostra(LF("Screenshot saved in Giochi › Foto")) } catch { mostra(error.localizedDescription) }
     }
+    private func fermaTenuti() {
+        giroTurbo?.invalidate(); giroTurbo = nil
+        if let t = turbo { emulatore?.tasto(t, premuto: false) }; turbo = nil
+        if let t = tenuto { emulatore?.tasto(t, premuto: false) }; tenuto = nil
+    }
     private func scegliTenuto() {
         guard let e = emulatore else { return }
-        if let t = tenuto { e.tasto(t, premuto: false); tenuto = nil; e.inPausa = false; mostra(LF("Button released")); return }
-        let m = UIAlertController(title: LF("Hold a Button"), message: LF("The button stays pressed until you release it from the menu (e.g. run in platform games)."), preferredStyle: .actionSheet)
+        if tenuto != nil || turbo != nil { fermaTenuti(); e.inPausa = false; mostra(LF("Button released")); return }
+        let m = UIAlertController(title: LF("Hold or Turbo"), message: LF("Hold: the button stays pressed (e.g. run). Turbo: it presses and releases by itself about 8 times a second, so dialogues move on without tapping. Release it from this menu."), preferredStyle: .actionSheet)
         var tasti: [FMLABTasto] = [.a, .b]
         if e.disposizione >= 2 { tasti += [.x, .y] }
         if e.disposizione >= 1 { tasti += [.l, .r] }
         for t in tasti {
-            m.addAction(UIAlertAction(title: nomeTasto(t), style: .default) { [weak self] _ in
+            m.addAction(UIAlertAction(title: String(format: LF("Turbo %@"), nomeTasto(t)), style: .default) { [weak self] _ in
+                guard let self else { return }
+                self.turbo = t; e.inPausa = false
+                var giu = false
+                self.giroTurbo = Timer.scheduledTimer(withTimeInterval: 1.0 / 16, repeats: true) { [weak e] _ in giu.toggle(); e?.tasto(t, premuto: giu) }
+                self.mostra(String(format: LF("Turbo on %@"), self.nomeTasto(t)))
+            })
+        }
+        for t in tasti {
+            m.addAction(UIAlertAction(title: String(format: LF("Hold %@"), nomeTasto(t)), style: .default) { [weak self] _ in
                 self?.tenuto = t; e.tasto(t, premuto: true); e.inPausa = false
                 self?.mostra(String(format: LF("%@ held down"), self?.nomeTasto(t) ?? ""))
             })

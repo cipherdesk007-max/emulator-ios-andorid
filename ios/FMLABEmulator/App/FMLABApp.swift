@@ -43,7 +43,6 @@ final class FMLABScena: UIResponder, UIWindowSceneDelegate {
 
 struct FMLABHome: View {
     @State private var scheda = 0
-    @State private var trasloco = false
     @Environment(\.scenePhase) private var fase
     var body: some View {
         TabView(selection: $scheda) {
@@ -55,16 +54,7 @@ struct FMLABHome: View {
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }.tag(2)
         }
         .tint(Color(red: 0.9, green: 0.15, blue: 0.15))
-        .sheet(isPresented: $trasloco) { NavigationView { FMLABTraslocoView(chiudi: { trasloco = false }, avviaSubito: true) } }
-        .onAppear {
-            FMLABAggiornamento.shared.controlla()
-            // prima apertura: se FMLAB Linux è in LiveContainer, i giochi e i salvataggi si portano qui da soli
-            guard UserDefaults.standard.object(forKey: FMLABTrasloco.chiaveFatto) == nil, !UserDefaults.standard.bool(forKey: "FMLAB.trasloco.proposto") else { return }
-            DispatchQueue.global(qos: .userInitiated).async {
-                let t = FMLABTrasloco.cercaFMLABLinux()
-                DispatchQueue.main.async { if t != nil { UserDefaults.standard.set(true, forKey: "FMLAB.trasloco.proposto"); trasloco = true } }
-            }
-        }
+        .onAppear { FMLABAggiornamento.shared.controlla() }
         .onChange(of: fase) { f in if f == .active { FMLABAggiornamento.shared.controlla() } }
     }
 }
@@ -76,7 +66,6 @@ struct FMLABImpostazioni: View {
     @AppStorage("FMLAB.rete") private var reteAccesa = true
     @State private var lingua = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String])?.first.map { $0.hasPrefix("it") ? "it" : $0.hasPrefix("en") ? "en" : "" } ?? ""
     @State private var indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip
-    @State private var trasloco = false
     var body: some View {
         List {
             Section {
@@ -93,9 +82,6 @@ struct FMLABImpostazioni: View {
                 Button { agg.aggiungiSorgente() } label: { Label("Add FMLAB to LiveContainer Sources", systemImage: "plus.app") }
             } footer: { Text("The app checks for new versions by itself. With the source added, LiveContainer shows FMLAB updates in its Sources tab too.") }
             FMLABAvvisoVersione()
-            Section {
-                Button { trasloco = true } label: { Label("Bring Games from FMLAB Linux…", systemImage: "arrow.right.doc.on.clipboard") }
-            } header: { Text("Your Games") } footer: { Text("Finds FMLAB Linux on this iPhone by itself and brings games, saves and settings here. You can repeat it: only what is newer there is copied.") }
             FMLABSezioniGioco()
             Section {
                 Toggle("Players 2–4 from Wi-Fi", isOn: $reteAccesa)
@@ -119,7 +105,6 @@ struct FMLABImpostazioni: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(LF("Settings"))
-        .sheet(isPresented: $trasloco) { NavigationView { FMLABTraslocoView(chiudi: { trasloco = false }, avviaSubito: false) } }
         .onAppear { indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip; if reteAccesa { rete.avvia() } }
     }
 }
