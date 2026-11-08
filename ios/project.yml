@@ -1,0 +1,42 @@
+name: FMLABEmulator
+options:
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  FMLABEmulator:
+    type: application
+    platform: iOS
+    sources:
+      - path: FMLABEmulator
+        excludes: ["**/.DS_Store"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.fmlab.emulator
+        PRODUCT_NAME: FMLABEmulator
+        INFOPLIST_FILE: FMLABEmulator/Info.plist
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: FMLABEmulator/FMLABEmulator-Bridging-Header.h
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CLANG_ENABLE_OBJC_ARC: YES
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/../build/libarchive/include", "$(SRCROOT)/FMLABEmulator/Motore"]
+        LIBRARY_SEARCH_PATHS: ["$(SRCROOT)/../build/libarchive/lib"]
+        OTHER_LDFLAGS: ["-larchive", "-llzma", "-lbz2", "-lz", "-liconv"]
+        GCC_WARN_INHIBIT_ALL_WARNINGS: NO
+    dependencies:
+      - sdk: OpenGLES.framework
+      - sdk: Accelerate.framework
+      - sdk: AVKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: GameController.framework
+      - sdk: Network.framework
+      - sdk: CoreGraphics.framework

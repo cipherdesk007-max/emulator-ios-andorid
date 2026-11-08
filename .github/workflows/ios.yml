@@ -1,0 +1,72 @@
+name: ios
+
+# FMLAB Emulator per iPhone: IPA senza firma, compilata gratis sui Mac di GitHub (repository pubblico).
+on:
+  push:
+    branches: [main]
+    paths: ["ios/**", "VERSIONE", "CHANGELOG.md", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+    inputs:
+      mac:
+        description: "Mac di GitHub (macos-15 arm64; macos-15-intel se gli arm64 sono pieni)"
+        default: macos-15
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: ${{ inputs.mac || 'macos-15' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode più recente e strumenti
+        run: |
+          X=$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -1)
+          echo "Xcode scelto: $X"; sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version
+          brew install xcodegen >/dev/null
+      - name: libarchive (dalla cache se c'è)
+        uses: actions/cache@v4
+        with:
+          path: build/libarchive
+          key: libarchive-ios-${{ hashFiles('ios/scripts/libarchive-ios.sh', 'ios/terzi/lzma-api/**') }}
+      - name: Compila libarchive
+        run: ios/scripts/libarchive-ios.sh
+      - name: Core degli emulatori (disco di fmlab-retro, impronta fissata in ios/DISCO-CORE)
+        run: |
+          read -r tag sha < ios/DISCO-CORE
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/FMLAB-Core.zip" "https://github.com/cipherdesk007-max/fmlab-retro/releases/download/$tag/FMLAB-Core.zip"
+          echo "$sha  $RUNNER_TEMP/FMLAB-Core.zip" | shasum -a 256 -c -
+          rm -rf build/FMLAB-Core && mkdir -p build && ditto -x -k "$RUNNER_TEMP/FMLAB-Core.zip" build/
+          ls build/FMLAB-Core
+      - name: Compila l'IPA (senza firma)
+        run: ios/scripts/compila-ipa.sh
+      - name: Verifica IPA
+        run: |
+          unzip -p build/FMLAB-Emulator.ipa Payload/FMLABEmulator.app/Info.plist > /tmp/Info.plist
+          plutil -p /tmp/Info.plist | grep -E "CFBundleIdentifier|CFBundleDisplayName|CFBundleShortVersionString|NSBonjourServices" -A1
+          plutil -p /tmp/Info.plist | grep -q '"CFBundleIdentifier" => "dev.fmlab.emulator"'
+          unzip -l build/FMLAB-Emulator.ipa | grep -E "it.lproj/Localizable.strings|Assets.car|Frameworks/FMLAB.*framework/Info.plist"
+          unzip -l build/FMLAB-Emulator.ipa | grep -q "Frameworks/FMLAB.*framework/Info.plist"
+          unzip -p build/FMLAB-Emulator.ipa Payload/FMLABEmulator.app/it.lproj/Localizable.strings | plutil -lint -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FMLAB-Emulator-ipa
+          path: build/FMLAB-Emulator.ipa
+      - name: Pubblica (versione numerata + "ultima")
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(tr -d '[:space:]' < VERSIONE)
+          NOTE=$(awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2)
+          gh release view "v$V" >/dev/null 2>&1 || gh release create "v$V" --target "$GITHUB_SHA" --title "FMLAB Emulator $V" --notes "$NOTE"
+          gh release upload "v$V" build/FMLAB-Emulator.ipa --clobber
+          gh release view ultima >/dev/null 2>&1 || gh release create ultima --target "$GITHUB_SHA" --latest --title "FMLAB Emulator (ultima)" --notes "Sempre l'ultima versione. iPhone: LiveContainer → + → Installa dall'URL → https://github.com/${GITHUB_REPOSITORY}/releases/download/ultima/FMLAB-Emulator.ipa · Android: scarica FMLAB-Controller.apk."
+          cp VERSIONE VERSIONE.txt
+          gh release upload ultima build/FMLAB-Emulator.ipa VERSIONE.txt --clobber
