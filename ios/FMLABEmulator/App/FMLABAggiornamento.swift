@@ -13,6 +13,8 @@ final class FMLABAggiornamento: ObservableObject {
     static var attuale: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
     static func ipa(_ v: String) -> String { "\(pagina)/releases/download/v\(v)/FMLAB-Emulator.ipa" }
     static let sorgente = "\(pagina)/releases/download/ultima/apps.json"
+    /// Sempre l'ultima versione (lo stesso link dell'installazione).
+    static let linkUltima = "\(pagina)/releases/download/ultima/FMLAB-Emulator.ipa"
 
     @Published private(set) var nuova: String?
     @Published private(set) var note: String?
@@ -72,9 +74,12 @@ final class FMLABAggiornamento: ObservableObject {
 }
 
 /// Riquadro "È uscita la versione …", in cima a Giochi e a Impostazioni.
+/// LiveContainer non installa mentre fa girare un'app (dice "Riavvia LiveContainer"): il modo sicuro è copiare il
+/// link, chiudere l'app e incollarlo in LiveContainer › + › Installa dall'URL.
 struct FMLABAvvisoVersione: View {
     @ObservedObject private var agg = FMLABAggiornamento.shared
     @State private var dettagli = false
+    @State private var copiato = false
     var body: some View {
         if let v = agg.nuova {
             Section {
@@ -82,12 +87,26 @@ struct FMLABAvvisoVersione: View {
                     Label(String(format: LF("FMLAB Emulator %@ is out"), v), systemImage: "arrow.down.app.fill").font(.headline).foregroundColor(.accentColor)
                     Text(String(format: LF("You have %@. Your games, saves and settings stay as they are."), FMLABAggiornamento.attuale)).font(.caption).foregroundColor(.secondary)
                     if let n = agg.note, !n.isEmpty {
-                        Text(n).font(.caption).lineLimit(dettagli ? nil : 4)
-                        Button(dettagli ? LF("Less") : LF("What's new…")) { withAnimation { dettagli.toggle() } }.font(.caption.weight(.semibold))
+                        Text(Self.testo(n)).font(.caption).lineLimit(dettagli ? nil : 5)
+                        Button(dettagli ? LF("Less") : LF("What's new…")) { withAnimation { dettagli.toggle() } }.font(.caption.weight(.semibold)).buttonStyle(.borderless)
                     }
                 }.padding(.vertical, 4)
-                Button { agg.installa() } label: { Label("Update Now", systemImage: "arrow.triangle.2.circlepath").font(.body.weight(.semibold)) }
-            } footer: { Text("Update Now opens LiveContainer, which installs the new version over this one. The link is also copied, for SideStore or AltStore.") }
+                Button {
+                    UIPasteboard.general.string = FMLABAggiornamento.linkUltima
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    withAnimation { copiato = true }
+                } label: { Label(copiato ? LF("Link Copied") : LF("Copy the Update Link"), systemImage: copiato ? "checkmark.circle.fill" : "doc.on.doc.fill").font(.body.weight(.semibold)) }
+                if copiato {
+                    Label("Close FMLAB Emulator: swipe it away from the open apps.", systemImage: "1.circle.fill").font(.callout)
+                    Label("Open LiveContainer › + › Install from URL and paste.", systemImage: "2.circle.fill").font(.callout)
+                    Label("Confirm the update: games and saves stay.", systemImage: "3.circle.fill").font(.callout)
+                }
+            } footer: { Text("LiveContainer cannot install while it is running an app (it asks to restart): that is why you copy the link and install from LiveContainer. The link is always the latest version. With SideStore or AltStore paste it there.") }
         }
+    }
+    /// Le note sono scritte in Markdown (come su GitHub): qui si mostrano formattate, senza asterischi.
+    static func testo(_ md: String) -> AttributedString {
+        let pulito = md.replacingOccurrences(of: "\n  ", with: " ").replacingOccurrences(of: "\n    ", with: " ")
+        return (try? AttributedString(markdown: pulito, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(pulito)
     }
 }

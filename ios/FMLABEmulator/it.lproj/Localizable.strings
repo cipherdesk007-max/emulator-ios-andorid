@@ -2067,3 +2067,11 @@
 "The TV is copying the iPhone" = "La TV sta copiando l'iPhone";
 "The TV shows Waiting for the game: open a game, it goes there and the iPhone becomes the controller." = "La TV mostra «In attesa del gioco»: apri un gioco, va lì e l'iPhone diventa il controller.";
 "iOS chose to copy the whole phone, because Screen Mirroring started before FMLAB asked for its own TV screen." = "iOS ha scelto di copiare tutto il telefono, perché Duplica schermo è partita prima che FMLAB chiedesse il suo schermo per la TV.";
+"Close FMLAB Emulator: swipe it away from the open apps." = "Chiudi FMLAB Emulator: scorrilo via dalle app aperte.";
+"Confirm the update: games and saves stay." = "Conferma l'aggiornamento: giochi e salvataggi restano.";
+"Copy the FMLAB Source Link" = "Copia il link della sorgente FMLAB";
+"Copy the Update Link" = "Copia il link dell'aggiornamento";
+"LiveContainer cannot install while it is running an app (it asks to restart): that is why you copy the link and install from LiveContainer. The link is always the latest version. With SideStore or AltStore paste it there." = "LiveContainer non può installare mentre fa girare un'app (chiede di riavviarlo): per questo si copia il link e si installa da LiveContainer. Il link è sempre l'ultima versione. Con SideStore o AltStore incollalo lì.";
+"Open LiveContainer › + › Install from URL and paste." = "Apri LiveContainer › + › Installa dall'URL e incolla.";
+"Source Link Copied" = "Link della sorgente copiato";
+"The app checks for new versions by itself. To see FMLAB updates in LiveContainer too: copy the source link, close this app, then LiveContainer › Sources › + and paste. From there one tap updates the app." = "L'app controlla da sola se ci sono versioni nuove. Per vedere gli aggiornamenti di FMLAB anche in LiveContainer: copia il link della sorgente, chiudi questa app, poi LiveContainer › Sorgenti › + e incolla. Da lì un tocco aggiorna l'app.";

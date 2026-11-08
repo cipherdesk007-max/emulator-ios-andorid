@@ -69,6 +69,7 @@ struct FMLABImpostazioni: View {
     @AppStorage("FMLAB.rete") private var reteAccesa = true
     @State private var lingua = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String])?.first.map { $0.hasPrefix("it") ? "it" : $0.hasPrefix("en") ? "en" : "" } ?? ""
     @State private var indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip
+    @State private var sorgenteCopiata = false
     var body: some View {
         List {
             Section {
@@ -82,8 +83,10 @@ struct FMLABImpostazioni: View {
                     Spacer()
                     if agg.controllando { ProgressView() } else { Button { agg.controlla(forza: true) } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless).accessibilityLabel(LF("Check for Updates")) }
                 }.padding(.vertical, 4)
-                Button { agg.aggiungiSorgente() } label: { Label("Add FMLAB to LiveContainer Sources", systemImage: "plus.app") }
-            } footer: { Text("The app checks for new versions by itself. With the source added, LiveContainer shows FMLAB updates in its Sources tab too.") }
+                Button { UIPasteboard.general.string = FMLABAggiornamento.sorgente; withAnimation { sorgenteCopiata = true } } label: {
+                    Label(sorgenteCopiata ? LF("Source Link Copied") : LF("Copy the FMLAB Source Link"), systemImage: sorgenteCopiata ? "checkmark.circle.fill" : "plus.app")
+                }
+            } footer: { Text("The app checks for new versions by itself. To see FMLAB updates in LiveContainer too: copy the source link, close this app, then LiveContainer › Sources › + and paste. From there one tap updates the app.") }
             FMLABAvvisoVersione()
             FMLABSezioniGioco()
             Section {

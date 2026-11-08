@@ -1,6 +1,13 @@
 # FMLAB Emulator: novità
 
-## 0.3.1
+## 0.3.2
+- **Aggiornare su iPhone**: LiveContainer non installa mentre fa girare un'app (chiede di riavviarlo), quindi il
+  tasto ora è *Copia il link dell'aggiornamento*, con i tre passi: chiudi l'app, LiveContainer › + › Installa
+  dall'URL e incolla, conferma.
+  - Il link è sempre quello dell'ultima versione.
+  - Anche la sorgente di LiveContainer si copia e si incolla in LiveContainer › Sorgenti.
+- Le novità della versione si vedono formattate, senza asterischi.
+
 - **TV**: iOS decide "schermo separato o copia del telefono" solo quando parte Duplica schermo. Se la
   duplicazione era già accesa prima di aprire FMLAB (per esempio dopo FMLAB Linux), la TV copiava tutto il
   telefono.
