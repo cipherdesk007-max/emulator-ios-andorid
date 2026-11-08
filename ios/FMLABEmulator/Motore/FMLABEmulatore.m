@@ -370,12 +370,7 @@ static int16_t fmlabStato(unsigned port, unsigned device, unsigned index, unsign
 
 static __weak FMLABEmulatore *G_attivo;
 
-@implementation FMLABEmulatore
-+ (void)reteGiocatore:(NSInteger)porta tasti:(uint32_t)tasti levettaX:(int16_t)x y:(int16_t)y {
-    if (porta < 0 || porta >= FMLAB_PORTE) return;
-    atomic_store(&G_rete[porta], tasti);
-    atomic_store(&G_reteLevetta[porta], ((uint32_t)(uint16_t)x << 16) | (uint16_t)y);
-} {
+@implementation FMLABEmulatore {
     FMLABCore *_core;
     NSString *_gioco, *_nomeGioco;
     NSData *_datiGioco;
@@ -393,6 +388,11 @@ static __weak FMLABEmulatore *G_attivo;
     BOOL _inAttesa, _copiaInSospeso;   // salvataggio visto, si aspetta che il gioco finisca di scrivere
     int _dopoCaricamento;         // controlli da ignorare come "salvataggio nel gioco" dopo aver caricato uno stato
     NSURL *_ripristino;           // copia da rimettere dopo la chiusura
+}
++ (void)reteGiocatore:(NSInteger)porta tasti:(uint32_t)tasti levettaX:(int16_t)x y:(int16_t)y {
+    if (porta < 0 || porta >= FMLAB_PORTE) return;
+    atomic_store(&G_rete[porta], tasti);
+    atomic_store(&G_reteLevetta[porta], ((uint32_t)(uint16_t)x << 16) | (uint16_t)y);
 }
 
 + (NSURL *)cartellaGiochi {
