@@ -66,12 +66,12 @@ class PadActivity : Activity() {
 
 /** I tasti disegnati a mano: niente ritardi, niente librerie. */
 class PadView(context: Context, private val menu: () -> Unit) : View(context) {
-    private class Tasto(val bit: Int, var etichetta: String, val rett: RectF = RectF(), var tondo: Boolean = true)
+    private class Bottone(val bit: Int, var etichetta: String, val rett: RectF = RectF(), var tondo: Boolean = true)
 
     var intestazione = ""; private set
     private var disposizione = 2
     private var core = ""
-    private val tasti = mutableListOf<Tasto>()
+    private val tasti = mutableListOf<Bottone>()
     private val centroCroce = FloatArray(2); private var raggioCroce = 0f
     private val rettMenu = RectF()
     private val premutiPerDito = HashMap<Int, Set<Int>>()
@@ -104,7 +104,7 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
         centroCroce[0] = w * 0.19f; centroCroce[1] = h * 0.62f
         val r = min(h * 0.095f, w * 0.055f)
         val cx = w * 0.81f; val cy = h * 0.62f; val passo = r * 2.15f
-        fun tondo(bit: Int, nome: String, x: Float, y: Float) = tasti.add(Tasto(bit, nome, RectF(x - r, y - r, x + r, y + r)))
+        fun tondo(bit: Int, nome: String, x: Float, y: Float) = tasti.add(Bottone(bit, nome, RectF(x - r, y - r, x + r, y + r)))
         when (disposizione) {
             0 -> { tondo(Tasto.B, "B", cx - passo * 0.55f, cy + passo * 0.35f); tondo(Tasto.A, "A", cx + passo * 0.55f, cy - passo * 0.35f) }
             1 -> { tondo(Tasto.B, "B", cx - passo * 0.55f, cy + passo * 0.35f); tondo(Tasto.A, "A", cx + passo * 0.55f, cy - passo * 0.35f) }
@@ -114,12 +114,12 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
             }
         }
         val sw = w * 0.17f; val sh = h * 0.12f; val m = 16 * d
-        fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Tasto(bit, nome, RectF(x, m, x + sw, m + sh), false))
+        fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Bottone(bit, nome, RectF(x, m, x + sw, m + sh), false))
         if (disposizione >= 1) { spalla(Tasto.L, if (ps) "L1" else "L", m); spalla(Tasto.R, if (ps) "R1" else "R", w - m - sw) }
         if (disposizione >= 3) { spalla(Tasto.L2, "L2", m + sw + m); spalla(Tasto.R2, "R2", w - 2 * m - 2 * sw) }
         val bw = w * 0.11f; val bh = h * 0.08f; val by = h - m - bh
-        tasti.add(Tasto(Tasto.SELECT, "SELECT", RectF(w / 2 - bw - 8 * d, by, w / 2 - 8 * d, by + bh), false))
-        tasti.add(Tasto(Tasto.START, "START", RectF(w / 2 + 8 * d, by, w / 2 + bw + 8 * d, by + bh), false))
+        tasti.add(Bottone(Tasto.SELECT, "SELECT", RectF(w / 2 - bw - 8 * d, by, w / 2 - 8 * d, by + bh), false))
+        tasti.add(Bottone(Tasto.START, "START", RectF(w / 2 + 8 * d, by, w / 2 + bw + 8 * d, by + bh), false))
         rettMenu.set(w / 2 - 28 * d, h * 0.2f, w / 2 + 28 * d, h * 0.2f + 40 * d)
     }
 
@@ -127,7 +127,7 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
         c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), sfondo)
         c.drawText(intestazione, width / 2f, 30 * d + testa.textSize, testa)
         // croce
-        val (x, y) = centroCroce[0] to centroCroce[1]; val a = raggioCroce; val b = a * 0.36f
+        val x = centroCroce[0]; val y = centroCroce[1]; val a = raggioCroce; val b = a * 0.36f
         for ((dir, rr) in listOf(Tasto.SU to RectF(x - b, y - a, x + b, y - b), Tasto.GIU to RectF(x - b, y + b, x + b, y + a),
                                  Tasto.SINISTRA to RectF(x - a, y - b, x - b, y + b), Tasto.DESTRA to RectF(x + b, y - b, x + a, y + b))) {
             c.drawRoundRect(rr, 8 * d, 8 * d, if (dir in premuti) acceso else pieno); c.drawRoundRect(rr, 8 * d, 8 * d, bordo)
@@ -156,7 +156,7 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
             if (ang < -22.5 && ang > -157.5) s.add(Tasto.SU)
             return s
         }
-        var migliore: Tasto? = null; var dm = Float.MAX_VALUE
+        var migliore: Bottone? = null; var dm = Float.MAX_VALUE
         for (t in tasti) {
             val r = RectF(t.rett).apply { inset(-t.rett.width() * 0.25f, -t.rett.height() * 0.25f) }
             if (r.contains(px, py)) { val dd = hypot(px - t.rett.centerX(), py - t.rett.centerY()); if (dd < dm) { dm = dd; migliore = t } }
