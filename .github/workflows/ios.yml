@@ -65,8 +65,8 @@ jobs:
         run: |
           V=$(tr -d '[:space:]' < VERSIONE)
           NOTE=$(awk '/^## /{n++} n==1' CHANGELOG.md | tail -n +2)
-          gh release view "v$V" >/dev/null 2>&1 || gh release create "v$V" --target "$GITHUB_SHA" --title "FMLAB Emulator $V" --notes "$NOTE"
+          gh release view "v$V" >/dev/null 2>&1 || gh release create "v$V" --target "$GITHUB_SHA" --title "FMLAB Emulator $V" --notes "$NOTE" || true
           gh release upload "v$V" build/FMLAB-Emulator.ipa --clobber
-          gh release view ultima >/dev/null 2>&1 || gh release create ultima --target "$GITHUB_SHA" --latest --title "FMLAB Emulator (ultima)" --notes "Sempre l'ultima versione. iPhone: LiveContainer → + → Installa dall'URL → https://github.com/${GITHUB_REPOSITORY}/releases/download/ultima/FMLAB-Emulator.ipa · Android: scarica FMLAB-Controller.apk."
+          gh release view ultima >/dev/null 2>&1 || gh release create ultima --target "$GITHUB_SHA" --latest --title "FMLAB Emulator (ultima)" --notes "Sempre l'ultima versione. iPhone: LiveContainer → + → Installa dall'URL → https://github.com/${GITHUB_REPOSITORY}/releases/download/ultima/FMLAB-Emulator.ipa · Android: scarica FMLAB-Controller.apk." || true
           cp VERSIONE VERSIONE.txt
           gh release upload ultima build/FMLAB-Emulator.ipa VERSIONE.txt --clobber

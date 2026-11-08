@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FMLAB Controller</string>
+    <string name="sottotitolo">Controller 2 for FMLAB Emulator</string>
+    <string name="partite_vicine">GAMES NEARBY</string>
+    <string name="cerco">Looking for FMLAB Emulator on this Wi-Fi…</string>
+    <string name="nota_partite">On the iPhone open FMLAB Emulator and a game. Both phones on the same Wi-Fi. Tap the iPhone to become player 2 (up to 4).</string>
+    <string name="con_indirizzo">BY ADDRESS</string>
+    <string name="indirizzo_esempio">IP address of the iPhone (e.g. 192.168.1.20)</string>
+    <string name="collegati">Connect</string>
+    <string name="nota_indirizzo">If the iPhone does not appear (some routers block discovery): its address is in iPhone Settings › Wi-Fi › ⓘ.</string>
+    <string name="pieno">That game already has 4 players.</string>
+    <string name="perso">The game was closed or the Wi-Fi dropped.</string>
+    <string name="non_collegato">Could not connect: %1$s</string>
+    <string name="collego">Connecting…</string>
+    <string name="ricerca_fallita">Wi-Fi search is not working: use the address.</string>
+    <string name="versione">Version %1$s · no games included</string>
+    <string name="giocatore">Player %1$d</string>
+    <string name="attesa_gioco">waiting for a game…</string>
+    <string name="esci_domanda">Leave the game? The other players keep playing.</string>
+    <string name="esci">Leave</string>
+    <string name="annulla">Cancel</string>
+</resources>

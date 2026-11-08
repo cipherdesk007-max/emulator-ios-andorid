@@ -1,15 +1,14 @@
 #!/bin/bash
 # FMLAB Emulator: libarchive statica per iPhone (arm64), per aprire i giochi in .zip, .7z e .rar senza estrarli a mano.
-# Stessa versione usata da FMLAB Linux (deps/libarchive). LZMA (7z) dalla libreria di iOS, con le intestazioni
+# Versione stabile ufficiale (tag). LZMA (7z) dalla libreria di iOS, con le intestazioni
 # pubbliche di XZ Utils in ios/terzi/lzma-api (come in FMLAB Linux).
 set -euo pipefail
-COMMIT=5ff27c70aea9230a125840a59e06d32544ed5dc0
+VERSIONE_LA=v3.7.7
 qui="$(cd "$(dirname "$0")/.." && pwd)"
 out="$qui/../build/libarchive"
 [ -f "$out/lib/libarchive.a" ] && { echo "libarchive già pronta"; exit 0; }
 tmp="$(mktemp -d)"
-git -c advice.detachedHead=false clone -q --filter=blob:none https://github.com/libarchive/libarchive "$tmp/src"
-git -C "$tmp/src" -c advice.detachedHead=false checkout -q "$COMMIT"
+git -c advice.detachedHead=false clone -q --depth 1 --branch "$VERSIONE_LA" https://github.com/libarchive/libarchive "$tmp/src"
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 cmake -S "$tmp/src" -B "$tmp/b" -G "Unix Makefiles" \
   -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_OSX_SYSROOT=iphoneos \
