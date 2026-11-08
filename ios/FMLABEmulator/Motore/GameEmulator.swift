@@ -759,6 +759,8 @@ struct GameEmulatorView: View {
             }
             var visti = Set<String>()
             tutti = tutti.filter { visti.insert($0.url.standardizedFileURL.path).inserted }
+            let via = Set((UserDefaults.standard.string(forKey: "FMLAB.console.nascoste") ?? "").split(separator: ",").map(String.init))
+            tutti = tutti.filter { !via.contains($0.core.nome) }
             DispatchQueue.main.async { giochi = tutti; cercando = false; FMLABLibreria.shared.aggiorna(tutti); FMLABCopertine.cerca(tutti) { aggiorna() } }
         }
     }
@@ -863,6 +865,7 @@ final class FMLABGiocoController: UIViewController {
             DispatchQueue.main.async { self?.pad.soloMenu = !GCController.controllers().compactMap(\.extendedGamepad).isEmpty }
         }
         osservatori = [NotificationCenter.default.addObserver(forName: Notification.Name("FMLABMisuraGioco"), object: nil, queue: .main) { [weak self] _ in
+                           self?.filtroPer = .zero
                            self?.view.setNeedsLayout(); UIView.animate(withDuration: 0.2) { self?.view.layoutIfNeeded() } },
                        NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main, using: controller),
                        NotificationCenter.default.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main, using: controller)]
@@ -1003,7 +1006,7 @@ final class FMLABGiocoController: UIViewController {
         l.contents = v.layer.contents
         let d = UserDefaults.standard, forma = d.string(forKey: "FMLAB.grafica.formato") ?? "originale"
         let filtro = d.string(forKey: "FMLAB.grafica.filtro") ?? "netti"
-        l.magnificationFilter = Self.morbido(filtro) ? .linear : .nearest
+        l.magnificationFilter = filtroScala(filtro); l.minificationFilter = .trilinear
         let ds = emulatore?.tocco == true, b = e.bounds
         var r = max(0.3, emulatore?.rapporto ?? 4.0 / 3.0)
         if !ds && forma == "largo" { r = max(r, 16.0 / 9.0) } else if !ds && forma == "pieno" { r = b.width / max(1, b.height) }
@@ -1139,6 +1142,12 @@ final class FMLABGiocoController: UIViewController {
     /// Console 2D a cui si può applicare Pixel art HD.
     static let console2D: Set<String> = ["fceumm", "gambatte", "mgba", "bsnes"]
     static func morbido(_ filtro: String) -> Bool { filtro == "morbido" || filtro == "hd" }
+    /// Pixel netti solo dove ha senso: giochi 2D alla risoluzione vera. Il 3D (PSP sempre; PS1 e DS quando sono
+    /// disegnati più grandi) si ingrandisce liscio: a pixel quadrati sulla TV diventa tutto a blocchi.
+    private func filtroScala(_ f: String) -> CALayerContentsFilter {
+        let alta = (emulatore?.misuraImmagine.height ?? 0) >= 380
+        return Self.morbido(f) || alta || gioco.core.nome == "ppsspp" ? .linear : .nearest
+    }
     /// Qualità scelta: originale, migliorata, massima (con la TV collegata si può salire da soli a massima).
     static func qualita(conTV: Bool = false) -> String {
         let d = UserDefaults.standard
@@ -1302,7 +1311,7 @@ final class FMLABGiocoController: UIViewController {
     private func aggiornaFiltro() {
         guard let e = emulatore else { return }
         let f = UserDefaults.standard.string(forKey: "FMLAB.grafica.filtro") ?? "netti"
-        e.vista.layer.magnificationFilter = Self.morbido(f) ? .linear : .nearest
+        e.vista.layer.magnificationFilter = filtroScala(f); e.vista.layer.minificationFilter = .trilinear
         FMLABEmulatore.usaPixelHD(f == "hd" && Self.console2D.contains(gioco.core.nome))
         secondoSchermo.layer.magnificationFilter = e.vista.layer.magnificationFilter
         filtroVista.frame = e.vista.frame
@@ -1539,7 +1548,7 @@ final class FMLABPad: UIView {
     var spazioLato: CGFloat = 0
     /// In verticale i comandi stanno sopra il gioco (schermo più grande): più trasparenti.
     var sopra = false
-    var nomeCore = ""
+    var nomeCore = "" { didSet { if nomeCore != oldValue { costruisci() } } }
     /// Dove sono salvate le posizioni dei tasti: per console e per verticale/orizzontale.
     var chiavePosizioni = "" { didSet { if chiavePosizioni != oldValue { if modifica && !oldValue.isEmpty { UserDefaults.standard.set(posizioni, forKey: oldValue) }; posizioni = (UserDefaults.standard.dictionary(forKey: chiavePosizioni) as? [String: [Double]]) ?? [:]; setNeedsLayout() } } }
     /// Posizioni personalizzate: elemento -> [spostamento x, spostamento y, ingrandimento]
@@ -1638,18 +1647,10 @@ final class FMLABPad: UIView {
         if disposizione >= 1 { lista += [(.l, "L"), (.r, "R")] }
         lista += [(.select, "SELECT"), (.start, "START")]
         pulsanti = lista.map { t, testo in
-            let l = UILabel(); l.text = testo; l.textAlignment = .center; l.textColor = .white
+            let l = UILabel(); l.text = testo; l.textAlignment = .center
+            l.textColor = FMLABTemaComandi.attuale.testo(t, core: nomeCore, ps: ps)
             l.font = .systemFont(ofSize: testo.count > 1 ? 11 : 22, weight: .bold)
             l.clipsToBounds = true; addSubview(l)
-            if ps {
-                switch t {
-                case .a: l.textColor = UIColor(red: 1, green: 0.42, blue: 0.45, alpha: 1)
-                case .b: l.textColor = UIColor(red: 0.5, green: 0.68, blue: 1, alpha: 1)
-                case .x: l.textColor = UIColor(red: 0.35, green: 0.85, blue: 0.7, alpha: 1)
-                case .y: l.textColor = UIColor(red: 0.95, green: 0.55, blue: 0.85, alpha: 1)
-                default: break
-                }
-            }
             return Pulsante(tasto: t, vista: l)
         }
         setNeedsLayout()
@@ -1665,7 +1666,8 @@ final class FMLABPad: UIView {
         let opacita = CGFloat(UserDefaults.standard.object(forKey: "FMLAB.comandi.opacita") as? Double ?? 0.9)
         let k = min(max(lato0 / 390, 0.85), 1.5) * CGFloat(utente)
         let alfa: CGFloat = (modo == .orizzontale && spazioLato < 150 * k) || sopra ? opacita * 0.5 : opacita
-        let fondo = UIColor(white: 0.22, alpha: alfa)
+        let tema = FMLABTemaComandi.attuale
+        let fondo = tema.fondo(alfa)
         let pillola = CGSize(width: 72 * k, height: 26 * k), spalla = CGSize(width: 76 * k, height: 30 * k), tondo = CGSize(width: 44 * k, height: 30 * k)
         var centroCroce: CGPoint, centroTasti: CGPoint, lato: CGFloat
         if modo == .verticale {
@@ -1702,6 +1704,7 @@ final class FMLABPad: UIView {
         // croce
         croce.frame = CGRect(x: centroCroce.x - lato / 2, y: centroCroce.y - lato / 2, width: lato, height: lato)
         croce.backgroundColor = fondo
+        croce.layer.borderWidth = tema.bordo; croce.layer.borderColor = tema.coloreBordo.cgColor
         croce.layer.cornerRadius = 18 * k
         let f = lato / 3
         frecce[0].frame = CGRect(x: f, y: 4, width: f, height: f - 8); frecce[1].frame = CGRect(x: f, y: lato - f + 4, width: f, height: f - 8)
@@ -1762,16 +1765,23 @@ final class FMLABPad: UIView {
         if g.state == .ended || g.state == .cancelled { trascinato = nil }
     }
     private func vista(_ t: FMLABTasto) -> UILabel? { pulsanti.first { $0.tasto == t }?.vista }
-    private func posa(_ t: FMLABTasto, _ r: CGRect, _ fondo: UIColor) { guard let v = vista(t) else { return }; v.frame = r; v.layer.cornerRadius = r.height / 2; v.backgroundColor = fondo }
+    private func posa(_ t: FMLABTasto, _ r: CGRect, _ fondo: UIColor) {
+        guard let v = vista(t) else { return }
+        let tema = FMLABTemaComandi.attuale
+        v.frame = r; v.layer.cornerRadius = tema.quadrati && r.width == r.height ? r.height * 0.28 : r.height / 2
+        v.backgroundColor = tema.fondoTasto(t, core: nomeCore, alfa: fondo.cgColor.alpha) ?? fondo
+    }
     private func posaTondo(_ t: FMLABTasto, _ c: CGPoint, _ d: CGFloat, _ fondo: UIColor) { posa(t, CGRect(x: c.x - d / 2, y: c.y - d / 2, width: d, height: d), fondo) }
 
     private func colora() {
         for p in pulsanti { guard let t = p.tasto else { continue }
-            p.vista.layer.borderWidth = premuti.contains(t.rawValue) ? 0 : 1
-            p.vista.layer.borderColor = UIColor(white: 1, alpha: 0.15).cgColor
-            if premuti.contains(t.rawValue) { p.vista.backgroundColor = rosso } else if p.vista.backgroundColor == rosso { setNeedsLayout() }
+            let tema = FMLABTemaComandi.attuale, giu = premuti.contains(t.rawValue)
+            p.vista.layer.borderWidth = giu ? 0 : tema.bordo
+            p.vista.layer.borderColor = tema.coloreBordo.cgColor
+            if giu { p.vista.backgroundColor = tema.premuto } else if p.vista.backgroundColor == tema.premuto { setNeedsLayout() }
         }
-        for (i, t) in [FMLABTasto.su, .giu, .sinistra, .destra].enumerated() { frecce[i].tintColor = premuti.contains(t.rawValue) ? rosso : .white }
+        let tema = FMLABTemaComandi.attuale
+        for (i, t) in [FMLABTasto.su, .giu, .sinistra, .destra].enumerated() { frecce[i].tintColor = premuti.contains(t.rawValue) ? tema.premuto : tema.freccia }
     }
 
     // Quali tasti tiene premuti un dito in quel punto (la croce dà fino a due direzioni: diagonali)

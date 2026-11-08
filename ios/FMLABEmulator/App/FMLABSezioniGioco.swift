@@ -44,16 +44,16 @@ struct FMLABSezioniGioco: View {
     @AppStorage("FMLAB.suono.mischia") private var mischia = false
     @AppStorage("FMLAB.giochi.esterno") private var usaEsterno = true
     @AppStorage(FMLABCopertine.chiaveAttive) private var copertine = true
+    @AppStorage("FMLAB.console.nascoste") private var nascosteTesto = ""
+    private var nascoste: Set<String> { Set(nascosteTesto.split(separator: ",").map(String.init)) }
 
     var body: some View {
         Group {
             Section {
                 Toggle(isOn: $sopra) { VStack(alignment: .leading, spacing: 3) { Text("Bigger Screen"); Text("The game takes all the space it can and the controls sit on top, see-through (above all on DS and in landscape).").font(.caption).foregroundColor(.secondary) } }
-                Picker("Controls Size", selection: $scala) { Text("Small").tag(0.85); Text("Normal").tag(1.0); Text("Large").tag(1.2) }
-                VStack(alignment: .leading) { Text("Controls Opacity"); Slider(value: $opacita, in: 0.3...1) }
-                Toggle("Vibration", isOn: $vibra)
+                NavigationLink { FMLABComandiView() } label: { HStack { Label("Controls Look", systemImage: "gamecontroller"); Spacer(); Text(LF(FMLABTemaComandi.attuale.nome)).foregroundColor(.secondary) } }
                 Picker("Fast Forward Speed", selection: $velocita) { Text("2×").tag(2.0); Text("3×").tag(3.0); Text("4×").tag(4.0) }
-                Picker("Sound in Fast Forward", selection: $suonoVeloce) { Text("Muted").tag("muto"); Text("Sped Up").tag("accelerato") }
+                FMLABRigaScelta(titolo: "Sound in Fast Forward", opzioni: FMLABScelte.suonoVeloce, scelta: $suonoVeloce)
                 Toggle(isOn: $copertine) { VStack(alignment: .leading, spacing: 3) { Text("Automatic Covers"); Text("Box art from the public libretro-thumbnails collection, found by file name (standard names like \"Super Mario World (USA)\").").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $mischia) { VStack(alignment: .leading, spacing: 3) { Text("Keep Music from Other Apps"); Text("Off: opening a game pauses Spotify and other music, like a real game does.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $riprendi) { VStack(alignment: .leading, spacing: 3) { Text("Resume Where I Left Off"); Text("When you quit a game it is saved; next time you can continue from there.").font(.caption).foregroundColor(.secondary) } }
@@ -76,26 +76,18 @@ struct FMLABSezioniGioco: View {
                 }
             }
             Section {
-                Picker("Quality", selection: $qualita) { Text("Original").tag("originale"); Text("Enhanced").tag("migliorata"); Text("Maximum").tag("massima") }
+                FMLABRigaScelta(titolo: "Quality", opzioni: FMLABScelte.qualita, scelta: $qualita)
                 Toggle(isOn: $tvMassima) { VStack(alignment: .leading, spacing: 3) { Text("Maximum on the TV"); Text("With Enhanced chosen, a game opened with the TV connected goes to Maximum: the TV is big and the iPhone only has to emulate.").font(.caption).foregroundColor(.secondary) } }
-                Picker("Picture", selection: $filtro) {
-                    Text("Sharp Pixels").tag("netti"); Text("Pixel Art HD").tag("hd"); Text("Smooth").tag("morbido"); Text("TV (scanlines)").tag("tv"); Text("Handheld LCD").tag("lcd")
-                }
+                FMLABRigaScelta(titolo: "Picture", opzioni: FMLABScelte.filtro, scelta: $filtro)
                 Toggle(isOn: $gpu) { VStack(alignment: .leading, spacing: 3) { Text("Graphics on the GPU (PSP)"); Text("The 3D is drawn by the iPhone's graphics chip: faster and sharper (2× with Enhanced Graphics). Turn it off only if a game shows broken graphics.").font(.caption).foregroundColor(.secondary) } }
-                Picker("Shape in Landscape", selection: $formato) {
-                    Text("Original").tag("originale"); Text("Wide 16:9").tag("largo"); Text("Fill the Screen").tag("pieno")
-                }
-            } header: { Text("Graphics") } footer: { Text("Sharp Pixels is the most faithful; TV draws the lines of an old television, LCD the grid of a Game Boy screen. Valid from the next game you open. Original keeps the real shape of the console; Wide and Fill stretch the picture in landscape (no black bars, round things look a bit oval).") }
+                FMLABRigaScelta(titolo: "Shape in Landscape", opzioni: FMLABScelte.forma, scelta: $formato)
+            } header: { Text("Graphics") } footer: { Text("Tap each item: every choice says what it changes. Valid from the next game you open; Picture, Shape and Quality also change right away from the game menu › Picture.") }
             Section {
                 Toggle(isOn: $textureHD) { VStack(alignment: .leading, spacing: 3) { Text("HD Textures (PSP)"); Text("Redraws the game textures at double size with xBRZ: sharper writing and surfaces. The first seconds of a new area can stutter while they are made.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $coloriLCD) { VStack(alignment: .leading, spacing: 3) { Text("True Handheld Colours (GB Color, GBA)"); Text("The colours as they looked on the real screen, not the over-bright raw ones.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $sciaLCD) { VStack(alignment: .leading, spacing: 3) { Text("LCD Trail (GB, GBA)"); Text("Blends one frame into the next like the old screens: transparencies and flickering sprites look right.").font(.caption).foregroundColor(.secondary) } }
-                Picker("Game Boy Colours", selection: $paletteGB) {
-                    Text("Automatic (Super Game Boy / Color)").tag("auto"); Text("Classic Green").tag("dmg"); Text("Pocket").tag("pocket"); Text("Light").tag("light"); Text("Grey").tag("grigio")
-                }
-                Picker("NES Colours", selection: $paletteNES) {
-                    Text("Natural (Smooth FBX)").tag("smooth-fbx"); Text("Real Console (NESCAP)").tag("nescap"); Text("Classic Mini").tag("nes-classic-fbx-fs"); Text("Emulator Default").tag("default")
-                }
+                FMLABRigaScelta(titolo: "Game Boy Colours", opzioni: FMLABScelte.paletteGB, scelta: $paletteGB)
+                FMLABRigaScelta(titolo: "NES Colours", opzioni: FMLABScelte.paletteNES, scelta: $paletteNES)
             } header: { Text("Retro Look") } footer: { Text("Pixel Art HD (in Picture) enlarges NES, Game Boy, GBA and SNES 4× with Scale2x: clean edges instead of steps, then soft. Valid from the next game you open.") }
             Section {
                 Toggle("Use the External Screen for Games", isOn: $usaEsterno)
@@ -115,16 +107,20 @@ struct FMLABSezioniGioco: View {
                 ForEach(FMLABEmulatore.core(), id: \.nome) { c in
                     let quanti = libreria.conteggio[c.nome] ?? 0
                     HStack(spacing: 12) {
-                        FMLABIconaConsole(core: c.nome, lato: 44)
+                        FMLABIconaConsole(core: c.nome, lato: 44).opacity(nascoste.contains(c.nome) ? 0.35 : 1)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack { Text(FMLABDati.nome(c)).font(.callout.weight(.semibold)); Spacer(); Text(quanti == 1 ? LF("1 game") : String(format: LF("%ld games"), quanti)).font(.caption).foregroundColor(.secondary) }
                             if let n = FMLABDati.nota(c) { Text(n).font(.caption).foregroundColor(.secondary) }
                             Text(c.estensioni.map { "." + $0 }.joined(separator: " ")).font(.caption2.monospaced()).foregroundColor(.secondary).lineLimit(1)
                         }
+                        Toggle("", isOn: Binding(get: { !nascoste.contains(c.nome) }, set: { mostra in
+                            var n = nascoste; if mostra { n.remove(c.nome) } else { n.insert(c.nome) }
+                            nascosteTesto = n.sorted().joined(separator: ","); ricarica()
+                        })).labelsHidden()
                     }.padding(.vertical, 2)
                 }
             } header: { Text("Consoles") } footer: {
-                Text("Native emulators (libretro cores), no JIT needed. Saves go to Giochi/Salvataggi; BIOS files, if a console needs them, go to Giochi/BIOS. On-screen controls follow the rotation; game controllers and hardware keyboards work too.")
+                Text("Turn off a console to hide its games from the list (the files are not touched). On iPhone all the emulators are already inside the app: iOS does not let an app add new programs after it is installed, so here you choose which consoles to see. Native emulators (libretro cores), no JIT needed.")
             }
             Section {
                 HStack { Text("Version"); Spacer(); Text(versioneDati).font(.callout.monospaced()).foregroundColor(.secondary) }

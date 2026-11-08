@@ -1,6 +1,28 @@
 # FMLAB Emulator: novità
 
-## 0.3.2
+## 0.4.0
+- **Niente più pixel a blocchi sulla TV**. Il gioco disegnato in alta risoluzione (PSP 1440×816 con la TV) si
+  ingrandiva fino a 1920×1080 con il filtro "pixel netti", che trasforma ogni pixel in un quadratone. Ora
+  "Pixel netti" vale solo per i giochi 2D alla risoluzione vera. Si ingrandisce liscio:
+  - la PSP, sempre;
+  - PS1 e DS quando sono disegnati più grandi.
+  Sul telefono il rimpicciolimento è più pulito (trilineare).
+- **Ogni scelta spiega cosa fa**: Qualità, Immagine, Forma, Colori del Game Boy e del NES, Suono con l'avanti
+  veloce. Ogni voce apre una pagina con le opzioni e quello che cambiano (es. "Massima: PSP 1440×816, DS 768×576,
+  pensata per la TV").
+- **Aspetto dei comandi**: 7 temi con l'anteprima dal vivo per SNES, PlayStation, NES e GBA:
+  - FMLAB;
+  - Colori della console (SNES rosso/giallo/blu/verde…);
+  - Vetro;
+  - Neon rosso;
+  - Solo contorno;
+  - Sala giochi (tasti quadrati);
+  - Alto contrasto.
+  Più misura (anche Molto grandi), trasparenza e vibrazione.
+- **Console a scelta**: in Impostazioni › Console ogni console si accende o si spegne. Spenta, i suoi giochi
+  spariscono dalla lista e i file restano. Su iPhone gli emulatori sono già tutti nell'app: iOS non lascia
+  aggiungere programmi dopo l'installazione.
+
 - **Aggiornare su iPhone**: LiveContainer non installa mentre fa girare un'app (chiede di riavviarlo), quindi il
   tasto ora è *Copia il link dell'aggiornamento*, con i tre passi: chiudi l'app, LiveContainer › + › Installa
   dall'URL e incolla, conferma.
