@@ -90,6 +90,9 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
     /** Nel gioco: console e tasti senza collegamento di rete. */
     fun console(disp: Int, nomeCore: String) { disposizione = disp; core = nomeCore; costruisci(); invalidate() }
     var nascosto = false; set(v) { field = v; invalidate() }
+    /** Tocco fuori dai tasti (schermo touch di DS e 3DS): x, y in pixel della vista, giù/su. */
+    var toccoLibero: ((Float, Float, Boolean) -> Unit)? = null
+    private var ditoLibero = -1
 
     fun imposta(e: Evento.Collegato) {
         intestazione = context.getString(R.string.giocatore, e.giocatore) + " · " + e.titolo.ifEmpty { context.getString(R.string.attesa_gioco) }
@@ -117,11 +120,11 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
                 tondo(Tasto.Y, if (ps) "□" else "Y", cx - passo, cy); tondo(Tasto.A, if (ps) "○" else "A", cx + passo, cy)
             }
         }
-        val sw = w * 0.17f; val sh = h * 0.12f; val m = 16 * d
+        val sw = w * 0.17f; val sh = minOf(h * 0.12f, w * 0.13f); val m = 16 * d
         fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Bottone(bit, nome, RectF(x, m, x + sw, m + sh), false))
         if (disposizione >= 1) { spalla(Tasto.L, if (ps) "L1" else "L", m); spalla(Tasto.R, if (ps) "R1" else "R", w - m - sw) }
         if (disposizione >= 3) { spalla(Tasto.L2, "L2", m + sw + m); spalla(Tasto.R2, "R2", w - 2 * m - 2 * sw) }
-        val bw = w * 0.11f; val bh = h * 0.08f; val by = h - m - bh
+        val bw = maxOf(w * 0.11f, 74 * d); val bh = minOf(h * 0.08f, 44 * d); val by = h - m - bh
         tasti.add(Bottone(Tasto.SELECT, "SELECT", RectF(w / 2 - bw - 8 * d, by, w / 2 - 8 * d, by + bh), false))
         tasti.add(Bottone(Tasto.START, "START", RectF(w / 2 + 8 * d, by, w / 2 + bw + 8 * d, by + bh), false))
         rettMenu.set(w / 2 - 28 * d, h * 0.2f, w / 2 + 28 * d, h * 0.2f + 40 * d)
@@ -143,7 +146,7 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
         for (t in tasti) {
             val p = if (t.bit in premuti) acceso else pieno
             if (t.tondo) { c.drawOval(t.rett, p); c.drawOval(t.rett, bordo) } else { c.drawRoundRect(t.rett, 12 * d, 12 * d, p); c.drawRoundRect(t.rett, 12 * d, 12 * d, bordo) }
-            scritta.textSize = if (t.tondo) t.rett.height() * 0.42f else t.rett.height() * 0.38f
+            scritta.textSize = if (t.tondo) t.rett.height() * 0.42f else minOf(t.rett.height() * 0.38f, t.rett.width() / (t.etichetta.length * 0.62f + 0.6f))
             c.drawText(t.etichetta, t.rett.centerX(), t.rett.centerY() - (scritta.descent() + scritta.ascent()) / 2, scritta)
         }
         c.drawRoundRect(rettMenu, 12 * d, 12 * d, pieno)
@@ -177,11 +180,20 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (rettMenu.contains(e.getX(i), e.getY(i))) { menu(); return true }
-                premutiPerDito[e.getPointerId(i)] = sotto(e.getX(i), e.getY(i))
+                val s = sotto(e.getX(i), e.getY(i))
+                if (s.isEmpty() && toccoLibero != null && ditoLibero < 0) { ditoLibero = e.getPointerId(i); toccoLibero?.invoke(e.getX(i), e.getY(i), true) }
+                else premutiPerDito[e.getPointerId(i)] = s
             }
-            MotionEvent.ACTION_MOVE -> for (k in 0 until e.pointerCount) premutiPerDito[e.getPointerId(k)]?.let { premutiPerDito[e.getPointerId(k)] = sotto(e.getX(k), e.getY(k)) }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> premutiPerDito.remove(e.getPointerId(i))
-            MotionEvent.ACTION_CANCEL -> premutiPerDito.clear()
+            MotionEvent.ACTION_MOVE -> for (k in 0 until e.pointerCount) {
+                val id = e.getPointerId(k)
+                if (id == ditoLibero) toccoLibero?.invoke(e.getX(k), e.getY(k), true)
+                else premutiPerDito[id]?.let { premutiPerDito[id] = sotto(e.getX(k), e.getY(k)) }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                val id = e.getPointerId(i)
+                if (id == ditoLibero) { toccoLibero?.invoke(e.getX(i), e.getY(i), false); ditoLibero = -1 } else premutiPerDito.remove(id)
+            }
+            MotionEvent.ACTION_CANCEL -> { premutiPerDito.clear(); if (ditoLibero >= 0) { toccoLibero?.invoke(0f, 0f, false); ditoLibero = -1 } }
         }
         val ora = premutiPerDito.values.flatten().toSet()
         if (ora != premuti) {

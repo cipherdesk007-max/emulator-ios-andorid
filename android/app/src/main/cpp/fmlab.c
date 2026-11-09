@@ -128,7 +128,11 @@ static void cambiaFinestra(void) {
     if (G_sup != EGL_NO_SURFACE) eglDestroySurface(G_dpy, G_sup);
     if (G_finestra) ANativeWindow_release(G_finestra);
     G_finestra = w;
-    if (w) G_sup = eglCreateWindowSurface(G_dpy, G_cfg, w, NULL);
+    if (w) {
+        EGLint formato = 0; eglGetConfigAttrib(G_dpy, G_cfg, EGL_NATIVE_VISUAL_ID, &formato);
+        ANativeWindow_setBuffersGeometry(w, 0, 0, formato);
+        G_sup = eglCreateWindowSurface(G_dpy, G_cfg, w, NULL);
+    }
     else { const EGLint pb[] = { EGL_WIDTH, 16, EGL_HEIGHT, 16, EGL_NONE }; G_sup = eglCreatePbufferSurface(G_dpy, G_cfg, pb); }
     eglMakeCurrent(G_dpy, G_sup, G_sup, G_ctx);
     eglSwapInterval(G_dpy, 0);
@@ -152,9 +156,11 @@ static retro_proc_address_t hwProc(const char *n) { return (retro_proc_address_t
 static void video(const void *d, unsigned w, unsigned h, size_t pitch) {
     if (!w || !h) return;
     G_w = w; G_h = h; G_nuova = true;
-    if (d == RETRO_HW_FRAME_BUFFER_VALID) return;          // il core ha disegnato nel nostro framebuffer
+    if (d == RETRO_HW_FRAME_BUFFER_VALID) { atomic_fetch_add(&G_immagini, 1); return; }   // il core ha disegnato nel nostro framebuffer
     if (!d) return;                                         // stessa schermata
-    glBindTexture(GL_TEXTURE_2D, G_tex); glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    atomic_fetch_add(&G_immagini, 1);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);                // un core GPU può averne lasciato uno legato
+    glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, G_tex); glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     if (G_formato == RETRO_PIXEL_FORMAT_XRGB8888) {
         glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(pitch / 4));
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, d);   // BGRA: si scambia nel disegno
@@ -175,18 +181,20 @@ static void disegna(void) {
     int W = ANativeWindow_getWidth(G_finestra), H = ANativeWindow_getHeight(G_finestra);
     glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, W, H);
     glDisable(GL_DEPTH_TEST); glDisable(GL_STENCIL_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE); glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_POLYGON_OFFSET_FILL); glDisable(GL_RASTERIZER_DISCARD); glColorMask(1, 1, 1, 1); glDepthMask(GL_TRUE);
+    glBindSampler(0, 0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
     float r = G_av.geometry.aspect_ratio > 0.1f ? G_av.geometry.aspect_ratio : (float)G_w / G_h;
     int forma = atomic_load(&G_forma);
     if (forma == 1 && W > H && r < 16.f / 9) r = 16.f / 9; else if (forma == 2) r = (float)W / H;
     float w = W, h = w / r; if (h > H) { h = H; w = h * r; }
-    float sx = w / W, sy = h / H;
+    float sx = w / W, sy = h / H, oy = H > W ? 1 - sy : 0;   // in verticale: in alto, i tasti stanno sotto
     bool hw = G_usaHw && G_fbo;
     // coordinate della texture: il software ha la riga 0 in alto; il framebuffer GL del core di solito in basso
     float u = hw ? (float)G_w / G_fboW : 1, vh = hw ? (float)G_h / G_fboH : 1;
     float vAlto = 0, vBasso = vh;
     if (hw && G_hw.bottom_left_origin) { vAlto = vh; vBasso = 0; }
-    const float q[] = { -sx, -sy, 0, vBasso,  sx, -sy, u, vBasso,  -sx, sy, 0, vAlto,  sx, sy, u, vAlto };
+    const float q[] = { -sx, oy - sy, 0, vBasso,  sx, oy - sy, u, vBasso,  -sx, oy + sy, 0, vAlto,  sx, oy + sy, u, vAlto };
     glUseProgram(G_prog);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, hw ? G_fboTex : G_tex);
     bool liscio = atomic_load(&G_filtro) || hw || G_h >= 380;
@@ -204,8 +212,20 @@ static void disegna(void) {
 }
 
 // ---- libretro: ambiente --------------------------------------------------------------------------------------
+static char G_messaggi[4096]; static pthread_mutex_t G_lockMsg = PTHREAD_MUTEX_INITIALIZER;
+static atomic_int G_immagini;     // fotogrammi con un'immagine vera (software o GPU)
+static void ricorda(const char *t) {
+    pthread_mutex_lock(&G_lockMsg);
+    size_t n = strlen(G_messaggi), m = strlen(t);
+    if (n + m + 2 >= sizeof G_messaggi) { size_t via = n + m + 2 - sizeof G_messaggi + 512; if (via > n) via = n; memmove(G_messaggi, G_messaggi + via, n - via + 1); }
+    strncat(G_messaggi, t, sizeof G_messaggi - strlen(G_messaggi) - 2);
+    if (m == 0 || t[m - 1] != '\n') strcat(G_messaggi, "\n");
+    pthread_mutex_unlock(&G_lockMsg);
+}
 static void logCore(enum retro_log_level l, const char *f, ...) {
-    va_list a; va_start(a, f); __android_log_vprint(ANDROID_LOG_INFO, "FMLAB-core", f, a); va_end(a);
+    char riga[512]; va_list a; va_start(a, f); vsnprintf(riga, sizeof riga, f, a); va_end(a);
+    __android_log_print(ANDROID_LOG_INFO, "FMLAB-core", "%s", riga);
+    if (l >= RETRO_LOG_WARN) ricorda(riga);     // avvisi ed errori: si mostrano se il gioco non parte
 }
 static bool ambiente(unsigned cmd, void *data) {
     switch (cmd & ~RETRO_ENVIRONMENT_EXPERIMENTAL) {
@@ -230,11 +250,15 @@ static bool ambiente(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned *)data = RETRO_HW_CONTEXT_OPENGLES3; return true;
     case RETRO_ENVIRONMENT_SET_HW_RENDER: {
         struct retro_hw_render_callback *h = data;
-        if (h->context_type != RETRO_HW_CONTEXT_OPENGLES2 && h->context_type != RETRO_HW_CONTEXT_OPENGLES3 && h->context_type != RETRO_HW_CONTEXT_OPENGLES_VERSION) return false;
+        if (h->context_type != RETRO_HW_CONTEXT_OPENGLES2 && h->context_type != RETRO_HW_CONTEXT_OPENGLES3 && h->context_type != RETRO_HW_CONTEXT_OPENGLES_VERSION) {
+            char t[160]; snprintf(t, sizeof t, "FMLAB: graphics type %d not available on Android (OpenGL ES only)", (int)h->context_type); ricorda(t); return false;
+        }
         h->get_current_framebuffer = hwFbo; h->get_proc_address = hwProc;
         G_hw = *h; G_usaHw = true; return true;
     }
-    case RETRO_ENVIRONMENT_SET_VARIABLES: case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME: case RETRO_ENVIRONMENT_SET_MESSAGE:
+    case RETRO_ENVIRONMENT_SET_MESSAGE: { const struct retro_message *m = data; if (m && m->msg) ricorda(m->msg); return true; }
+    case (RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT & ~RETRO_ENVIRONMENT_EXPERIMENTAL): return true;
+    case RETRO_ENVIRONMENT_SET_VARIABLES: case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
     case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL: case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS: case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
     case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO: case RETRO_ENVIRONMENT_SET_MEMORY_MAPS: return true;
     default: return false;
@@ -376,6 +400,7 @@ JNIEXPORT jstring JNICALL J(avvia)(JNIEnv *e, jclass k, jstring core, jstring gi
         G_info.data = G_datiGioco; G_info.size = n;
     }
     atomic_store(&G_ferma, false); atomic_store(&G_pausa, false); atomic_store(&G_esito, 0); atomic_store(&G_vivo, true);
+    atomic_store(&G_immagini, 0); pthread_mutex_lock(&G_lockMsg); G_messaggi[0] = 0; pthread_mutex_unlock(&G_lockMsg);
     pthread_create(&G_filo, NULL, giro, NULL);
     for (int i = 0; i < 400 && atomic_load(&G_esito) == 0; i++) usleep(10000);   // fino a 4 s per caricare il gioco
     int es = atomic_load(&G_esito);
@@ -411,3 +436,9 @@ JNIEXPORT void JNICALL J(ferma)(JNIEnv *e, jclass k) {
     atomic_store(&G_pausa, false); atomic_store(&G_ferma, true); pthread_join(G_filo, NULL); atomic_store(&G_vivo, false);
     if (C.h) dlclose(C.h); C.h = NULL;
 }
+
+JNIEXPORT jint JNICALL J(immagini)(JNIEnv *e, jclass k) { return atomic_load(&G_immagini); }
+JNIEXPORT jstring JNICALL J(messaggi)(JNIEnv *e, jclass k) {
+    pthread_mutex_lock(&G_lockMsg); jstring s = (*e)->NewStringUTF(e, G_messaggi); pthread_mutex_unlock(&G_lockMsg); return s;
+}
+JNIEXPORT jboolean JNICALL J(usaGpu)(JNIEnv *e, jclass k) { return G_usaHw; }

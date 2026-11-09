@@ -76,4 +76,10 @@
     <string name="cartelle_spiega">Le tue cartelle: %1$s/Giochi, Salvataggi, BIOS. Restano anche se disinstalli l\'app.</string>
     <string name="giocatore_entrato">Giocatore %1$s collegato</string>
     <string name="giocatore_uscito">Il giocatore %1$s è uscito</string>
+    <string name="nero_titolo">Il gioco gira ma non mostra l\'immagine</string>
+    <string name="nero_3ds">Molto probabilmente il file del gioco è criptato: l\'emulatore 3DS apre solo copie DECRIPTATE (.3ds/.cci/.cxi fatte con uno strumento di decriptazione, spesso chiamate \"decrypted\"). Controlla anche che il telefono sia abbastanza potente (meglio Snapdragon 8 Gen 1 o più nuovi).</string>
+    <string name="nero_gpu">Questo emulatore disegna sul chip grafico: se il telefono non supporta quello che serve, l\'immagine resta nera. Prova Qualità: Originale nelle Impostazioni e guarda i messaggi qui sotto.</string>
+    <string name="nero_generico">Il file del gioco potrebbe essere danneggiato o di un\'altra console, oppure manca un BIOS in FMLAB/BIOS.</string>
+    <string name="nero_messaggi">Messaggi dell\'emulatore:</string>
+    <string name="nero_aspetta">Aspetta</string>
 </resources>

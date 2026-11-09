@@ -19,4 +19,9 @@ object Motore {
     @JvmStatic external fun salvaStato(percorso: String): Boolean
     @JvmStatic external fun caricaStato(percorso: String): Boolean
     @JvmStatic external fun ferma()
+    /** Fotogrammi con un'immagine vera da quando è partito il gioco (0 = schermo nero). */
+    @JvmStatic external fun immagini(): Int
+    /** Avvisi ed errori del core (ultime righe). */
+    @JvmStatic external fun messaggi(): String
+    @JvmStatic external fun usaGpu(): Boolean
 }

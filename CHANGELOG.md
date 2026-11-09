@@ -1,6 +1,16 @@
 # FMLAB Emulator: novità
 
-## 0.6.1
+## 0.6.2
+- **Android, schermo nero con il gioco che gira** (es. 3DS):
+  - Il motore pulisce lo stato grafico che i core che disegnano sulla GPU lasciano dietro (maschere di colore,
+    sampler, buffer legati), quindi l'immagine non sparisce più.
+  - La finestra prende il formato giusto.
+  - Se dopo 8 secondi non è arrivata nessuna immagine, l'app lo dice, con il motivo probabile e gli ultimi
+    messaggi dell'emulatore. Per il 3DS, quasi sempre è un gioco criptato: servono le copie decriptate.
+- **Android, tocco per DS e 3DS**: un dito sull'immagine (fuori dai tasti) tocca lo schermo del gioco.
+- **Android, verticale**: il gioco sta in alto e i tasti sotto, senza coprirlo; SELECT e START non escono più
+  dai tasti.
+
 - **L'iPhone fa da controller per Android**: con un gioco aperto su Android, un iPhone sullo stesso Wi-Fi apre
   FMLAB Emulator › Controller 2 e diventa il giocatore 2 (fino a 4).
   - Android si annuncia sul Wi-Fi e risponde alla ricerca come l'iPhone.

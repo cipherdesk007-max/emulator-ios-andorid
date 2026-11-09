@@ -53,6 +53,12 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         radice.addView(superficie, FrameLayout.LayoutParams(-1, -1))
         pad = PadView(this, trasparente = true, invia = { bit, giu -> tastiSchermo = if (giu) tastiSchermo or (1 shl bit) else tastiSchermo and (1 shl bit).inv(); invia(0) }) { menu() }
         pad.console(Emulatori.disposizione(nome), nome)
+        // DS e 3DS: un dito sull'immagine (fuori dai tasti) tocca lo schermo del gioco
+        if (nome in setOf("melonds", "desmume", "citra")) pad.toccoLibero = { x, y, giu ->
+            val r = rettangoloGioco(pad.width.toFloat(), pad.height.toFloat())
+            val px = ((x - r.left) / r.width()).coerceIn(0f, 1f); val py = ((y - r.top) / r.height()).coerceIn(0f, 1f)
+            Motore.tocco((px * 65534 - 32767).toInt(), (py * 65534 - 32767).toInt(), giu && r.contains(x, y))
+        }
         radice.addView(pad, FrameLayout.LayoutParams(-1, -1))
         attesa = ProgressBar(this); radice.addView(attesa, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         etichetta = TextView(this).apply { setTextColor(Color.WHITE); textSize = 12f; setBackgroundColor(Color.argb(140, 0, 0, 0)); setPadding(12, 6, 12, 6); visibility = View.GONE }
@@ -73,6 +79,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                         .setMessage(getString(R.string.gioco_non_parte, err)).setPositiveButton("OK") { _, _ -> finish() }.setCancelable(false).show()
                 } else {
                     avviato = true; if (prefs.getBoolean("fps", false)) mostraFps()
+                    etichetta.postDelayed({ controllaImmagine() }, 8000)
                     // giocatori 2…4 dal Wi-Fi (iPhone o Android con Controller 2)
                     Host.cambiati = { p -> invia(p) }
                     Host.avvisa = { t -> runOnUiThread { Toast.makeText(this, if (t.startsWith("−")) getString(R.string.giocatore_uscito, t.drop(2)) else getString(R.string.giocatore_entrato, t), Toast.LENGTH_SHORT).show() } }
@@ -82,6 +89,29 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         }.start()
     }
 
+    /** Il gioco gira ma non manda immagini: si dice perché, invece di lasciare lo schermo nero. */
+    private fun controllaImmagine() {
+        if (isFinishing || !avviato || Motore.immagini() > 0) return
+        Motore.pausa(true)
+        val consiglio = when (nome) {
+            "citra" -> getString(R.string.nero_3ds)
+            "dolphin", "flycast", "mupen64plus_next_gles3", "ppsspp" -> getString(R.string.nero_gpu)
+            else -> getString(R.string.nero_generico)
+        }
+        val log = Motore.messaggi().trim().lines().takeLast(8).joinToString("\n")
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.nero_titolo)
+            .setMessage(consiglio + if (log.isNotEmpty()) "\n\n" + getString(R.string.nero_messaggi) + "\n" + log else "")
+            .setPositiveButton(R.string.nero_aspetta) { _, _ -> Motore.pausa(false); etichetta.postDelayed({ controllaImmagine() }, 15000) }
+            .setNegativeButton(R.string.esci_gioco) { _, _ -> finish() }.setCancelable(false).show()
+    }
+    /** Dove sta l'immagine del gioco sullo schermo (come la mette il motore: in verticale in alto). */
+    private fun rettangoloGioco(W: Float, H: Float): android.graphics.RectF {
+        var r = Motore.rapporto(); val forma = prefs.getInt("forma", 0)
+        if (forma == 1 && W > H && r < 16f / 9) r = 16f / 9 else if (forma == 2) r = W / H
+        var w = W; var h = w / r; if (h > H) { h = H; w = h * r }
+        val y = if (H > W) 0f else (H - h) / 2
+        return android.graphics.RectF((W - w) / 2, y, (W + w) / 2, y + h)
+    }
     private fun applicaImmagine() = Motore.immagine(prefs.getInt("filtro", 0), prefs.getInt("effetto", 0), prefs.getInt("forma", 0))
 
     @Suppress("DEPRECATION")
