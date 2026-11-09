@@ -50,6 +50,7 @@ class HomeActivity : Activity() {
         radice.addView(ScrollView(this).apply { addView(contenuto) }, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(radice)
         Emulatori.leggiSalvato(this)
+        if (accessoFile()) Archivio.preparaCartelle()
         Emulatori.carica(this) { if (!isFinishing) mostra() }
         Aggiornamento.controlla(packageManager.getPackageInfo(packageName, 0).versionName ?: "0") { v -> if (v != null && !isFinishing) { versioneNuova = v; mostra() } }
     }
@@ -103,8 +104,18 @@ class HomeActivity : Activity() {
         contenuto.addView(testo(getString(R.string.dove_giochi, Archivio.giochi.path), 12f, Color.GRAY).apply { setPadding(0, dp(16), 0, dp(24)) })
     }
     private fun apri(g: File) {
-        val adatti = Emulatori.per(this, g)
-        fun via(e: Emulatore) = startActivity(Intent(this, GiocoActivity::class.java).putExtra("core", e.nome).putExtra("gioco", g.path))
+        var adatti = Emulatori.per(this, g)
+        if (adatti.any { it.nome == "azahar" }) adatti = adatti.filter { it.nome != "citra" }   // per il 3DS Azahar è il migliore
+        fun parti(e: Emulatore, file: File) = startActivity(Intent(this, GiocoActivity::class.java).putExtra("core", e.nome).putExtra("gioco", file.path))
+        fun via(e: Emulatore) {
+            if (!g.extension.equals("zip", true)) return parti(e, g)
+            // .zip: si estrae una volta sola in FMLAB/Giochi/Estratti, poi si apre subito
+            val attesa = AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(g.nameWithoutExtension).setMessage(getString(R.string.estraggo, 0)).setCancelable(false).show()
+            Thread {
+                val r = try { Archivio.estrai(g) { p -> runOnUiThread { attesa.setMessage(getString(R.string.estraggo, p)) } } } catch (x: Exception) { null }
+                runOnUiThread { attesa.dismiss(); if (r != null && r.isFile) parti(e, r) else nota(getString(R.string.zip_errore)) }
+            }.start()
+        }
         when {
             adatti.isEmpty() -> nota(getString(R.string.nessun_emulatore))
             adatti.size == 1 -> via(adatti[0])

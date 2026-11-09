@@ -77,9 +77,11 @@
     <string name="giocatore_entrato">Player %1$s connected</string>
     <string name="giocatore_uscito">Player %1$s left</string>
     <string name="nero_titolo">The game runs but shows no picture</string>
-    <string name="nero_3ds">Most likely the game file is encrypted: the 3DS emulator only opens DECRYPTED copies (.3ds/.cci/.cxi made with a decryption tool, often called \"decrypted\"). Also check that the phone is powerful enough (Snapdragon 8 Gen 1 or newer is best).</string>
+    <string name="nero_3ds">If the game is DECRYPTED it should start: try Azahar (Emulators › Nintendo 3DS Azahar), more recent than Citra. If it is ENCRYPTED it needs the keys of your own 3DS: put keys.txt / aes_keys.txt in FMLAB/BIOS/azahar/sysdata (read the README there). Also check the phone is powerful enough (Snapdragon 8 Gen 1 or newer is best).</string>
     <string name="nero_gpu">This emulator draws on the graphics chip: if the phone does not support what it needs, the picture stays black. Try Quality: Original in Settings, and check the messages below.</string>
     <string name="nero_generico">The game file may be damaged or for another console, or a BIOS is missing in FMLAB/BIOS.</string>
     <string name="nero_messaggi">Messages from the emulator:</string>
     <string name="nero_aspetta">Wait</string>
+    <string name="estraggo">Extracting the game (only the first time)… %1$d%%</string>
+    <string name="zip_errore">The .zip could not be extracted (damaged, protected by a password, or not enough space).</string>
 </resources>

@@ -1,6 +1,18 @@
 # FMLAB Emulator: novità
 
-## 0.6.2
+## 0.6.3
+- **3DS con Azahar**: Azahar è l'emulatore 3DS attuale, erede di Citra e Lime3DS, e ha un core ufficiale per
+  Android.
+  - Ora è tra gli emulatori da installare; se ci sono tutti e due, i giochi 3DS si aprono con lui.
+  - Citra resta come alternativa.
+  - Giochi criptati: servono le chiavi del proprio 3DS (keys.txt o aes_keys.txt), da mettere in
+    FMLAB/BIOS/azahar/sysdata. La cartella c'è già, con un LEGGIMI. FMLAB non include chiavi.
+- **PSP e GameCube/Wii completi**: installando PPSSPP o Dolphin si installano anche i loro file di sistema (font,
+  dati) in FMLAB/BIOS, dal buildbot di libretro con impronta controllata. Senza, alcuni giochi non mostravano le
+  scritte o non partivano.
+- **Giochi in .zip anche su Android**: si vedono nella lista con la console giusta e si estraggono una volta sola
+  in FMLAB/Giochi/Estratti; dalla volta dopo si aprono subito.
+
 - **Android, schermo nero con il gioco che gira** (es. 3DS):
   - Il motore pulisce lo stato grafico che i core che disegnano sulla GPU lasciano dietro (maschere di colore,
     sampler, buffer legati), quindi l'immagine non sparisce più.

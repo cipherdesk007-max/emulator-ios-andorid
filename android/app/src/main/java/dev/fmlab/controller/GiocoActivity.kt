@@ -54,7 +54,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         pad = PadView(this, trasparente = true, invia = { bit, giu -> tastiSchermo = if (giu) tastiSchermo or (1 shl bit) else tastiSchermo and (1 shl bit).inv(); invia(0) }) { menu() }
         pad.console(Emulatori.disposizione(nome), nome)
         // DS e 3DS: un dito sull'immagine (fuori dai tasti) tocca lo schermo del gioco
-        if (nome in setOf("melonds", "desmume", "citra")) pad.toccoLibero = { x, y, giu ->
+        if (nome in setOf("melonds", "desmume", "citra", "azahar")) pad.toccoLibero = { x, y, giu ->
             val r = rettangoloGioco(pad.width.toFloat(), pad.height.toFloat())
             val px = ((x - r.left) / r.width()).coerceIn(0f, 1f); val py = ((y - r.top) / r.height()).coerceIn(0f, 1f)
             Motore.tocco((px * 65534 - 32767).toInt(), (py * 65534 - 32767).toInt(), giu && r.contains(x, y))
@@ -94,7 +94,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         if (isFinishing || !avviato || Motore.immagini() > 0) return
         Motore.pausa(true)
         val consiglio = when (nome) {
-            "citra" -> getString(R.string.nero_3ds)
+            "citra", "azahar" -> getString(R.string.nero_3ds)
             "dolphin", "flycast", "mupen64plus_next_gles3", "ppsspp" -> getString(R.string.nero_gpu)
             else -> getString(R.string.nero_generico)
         }
@@ -206,7 +206,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         Motore.levetta(p, (x * 32767).toInt(), (y * 32767).toInt())
         // croce come asse (molti controller) e levetta che fa da croce nei giochi 2D
         val hx = e.getAxisValue(MotionEvent.AXIS_HAT_X); val hy = e.getAxisValue(MotionEvent.AXIS_HAT_Y)
-        val psp = nome == "ppsspp" || nome.startsWith("mupen") || nome == "citra" || nome == "dolphin" || nome == "flycast"
+        val psp = nome == "ppsspp" || nome.startsWith("mupen") || nome == "citra" || nome == "azahar" || nome == "dolphin" || nome == "flycast"
         var t = tastiController[p] and ((1 shl Tasto.SU) or (1 shl Tasto.GIU) or (1 shl Tasto.SINISTRA) or (1 shl Tasto.DESTRA) or (1 shl Tasto.L2) or (1 shl Tasto.R2)).inv()
         val soglia = if (psp) 2f else 0.5f
         if (hy < -0.5f || y < -soglia) t = t or (1 shl Tasto.SU); if (hy > 0.5f || y > soglia) t = t or (1 shl Tasto.GIU)

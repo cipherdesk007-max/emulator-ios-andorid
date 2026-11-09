@@ -31,16 +31,46 @@ def scarica(u):
     with urllib.request.urlopen(r, timeout=180) as f:
         return f.read()
 
+# core pubblicati dai loro autori su GitHub invece che sul buildbot
+GITHUB = {"azahar": "azahar-emu/azahar"}
+
+def dagithub(repo):
+    """L'ultima versione stabile con un core libretro per Android arm64 tra i file allegati."""
+    r = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=15", headers={"User-Agent": "FMLAB-Emulator-CI", "Accept": "application/vnd.github+json"})
+    if os.environ.get("GH_TOKEN"): r.add_header("Authorization", "Bearer " + os.environ["GH_TOKEN"])
+    rel = json.load(urllib.request.urlopen(r, timeout=60))
+    for v in sorted(rel, key=lambda x: (x.get("prerelease", True), x.get("published_at") or ""), reverse=False):
+        pass
+    for v in [x for x in rel if not x.get("prerelease")] + [x for x in rel if x.get("prerelease")]:
+        nomi = [a["name"] for a in v.get("assets", [])]
+        for a in v.get("assets", []):
+            n = a["name"].lower()
+            if "libretro" in n and "android" in n and (n.endswith(".zip") or n.endswith(".so")):
+                print(f"    {repo} {v['tag_name']}: {a['name']}")
+                return scarica(a["browser_download_url"])
+        print(f"    {repo} {v['tag_name']}: nessun core Android tra {nomi[:12]}")
+    raise RuntimeError("nessun core Android nelle release")
+
+def libreria(dati):
+    """La .so dentro uno zip (anche zip dentro zip), oppure i dati stessi se sono già una .so."""
+    if dati[:4] == b"\x7fELF": return dati
+    z = zipfile.ZipFile(io.BytesIO(dati))
+    so = [n for n in z.namelist() if n.endswith(".so") and "android" in n.lower() or n.endswith("_libretro_android.so")] or [n for n in z.namelist() if n.endswith(".so")]
+    if so: return z.read(sorted(so, key=lambda n: ("arm64" not in n and "aarch64" not in n, n))[0])
+    for n in z.namelist():
+        if n.endswith(".zip"): return libreria(z.read(n))
+    raise RuntimeError("nessuna .so")
+
 def main(out):
     elenco = []
     for nome, (console, est, nota) in CORE.items():
         file = f"{nome}_libretro_android.so.zip"
         try:
-            dati = scarica(BASE + file)
+            dati = dagithub(GITHUB[nome]) if nome in GITHUB else scarica(BASE + file)
         except Exception as e:
             print(f"--  {nome}: non disponibile ({e})"); continue
         try:
-            z = zipfile.ZipFile(io.BytesIO(dati)); so = next(n for n in z.namelist() if n.endswith(".so")); lib = z.read(so)
+            lib = libreria(dati)
         except Exception as e:
             print(f"!!  {nome}: zip non valido ({e})"); continue
         if lib[:4] != b"\x7fELF" or lib[18] != 0xB7 or b"retro_run" not in lib:   # ELF, AArch64, libretro

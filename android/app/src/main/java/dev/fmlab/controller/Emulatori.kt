@@ -12,7 +12,8 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
-data class Emulatore(val nome: String, val console: String, val estensioni: List<String>, val nota: String, val file: String, val sha256: String, val misura: Long)
+data class Emulatore(val nome: String, val console: String, val estensioni: List<String>, val nota: String, val file: String, val sha256: String, val misura: Long,
+                     val sistema: String = "", val sistemaSha256: String = "", val sistemaMisura: Long = 0)
 
 object Emulatori {
     private const val BASE = "https://github.com/cipherdesk007-max/emulator-ios-andorid/releases/download/core-android"
@@ -50,7 +51,8 @@ object Emulatori {
             val a = JSONObject(f.readText()).getJSONArray("core")
             elenco = (0 until a.length()).map { i -> val o = a.getJSONObject(i)
                 Emulatore(o.getString("nome"), o.getString("console"), (0 until o.getJSONArray("estensioni").length()).map { o.getJSONArray("estensioni").getString(it) },
-                    o.optString("nota"), o.getString("file"), o.getString("sha256"), o.getLong("misura")) }
+                    o.optString("nota"), o.getString("file"), o.getString("sha256"), o.getLong("misura"),
+                    o.optString("sistema"), o.optString("sistemaSha256"), o.optLong("sistemaMisura")) }
         } catch (_: Exception) { }
     }
 
@@ -68,7 +70,24 @@ object Emulatori {
             ZipInputStream(zip.inputStream()).use { z -> var v = z.nextEntry
                 while (v != null) { if (v.name.endsWith(".so")) { tmp.outputStream().use { z.copyTo(it) }; break }; v = z.nextEntry } }
             if (!tmp.exists() || tmp.length() < 1024) throw IllegalStateException("libreria mancante")
-            tmp.renameTo(dest); null
+            tmp.renameTo(dest)
+            // file di sistema (font e dati di PPSSPP, Dolphin…) nella cartella FMLAB/BIOS, dove li cerca il core
+            if (e.sistema.isNotEmpty()) {
+                val zs = File(c.cacheDir, e.sistema)
+                val ks = apri("$BASE/${e.sistema}"); if (ks.responseCode != 200) throw IllegalStateException("HTTP ${ks.responseCode}")
+                val md2 = MessageDigest.getInstance("SHA-256")
+                ks.inputStream.use { i -> zs.outputStream().use { o -> val b = ByteArray(1 shl 16); var n: Int; while (i.read(b).also { n = it } > 0) { o.write(b, 0, n); md2.update(b, 0, n) } } }
+                if (md2.digest().joinToString("") { "%02x".format(it) } != e.sistemaSha256) throw IllegalStateException("file di sistema non valido")
+                val radice = Archivio.bios.canonicalFile
+                ZipInputStream(zs.inputStream()).use { z -> var v = z.nextEntry
+                    while (v != null) {
+                        val f = File(radice, v.name).canonicalFile
+                        if (f.path.startsWith(radice.path)) { if (v.isDirectory) f.mkdirs() else { f.parentFile?.mkdirs(); f.outputStream().use { z.copyTo(it) } } }
+                        v = z.nextEntry
+                    } }
+                zs.delete()
+            }
+            null
         } catch (x: Exception) { x.localizedMessage ?: x.toString() } finally { zip.delete() }
         principale.post { fatto(errore) }
     }.start()
@@ -76,7 +95,7 @@ object Emulatori {
 
     /** Emulatori installati che aprono questo file. */
     fun per(c: Context, file: File): List<Emulatore> {
-        val est = file.extension.lowercase()
+        val est = (if (file.extension.equals("zip", true)) Archivio.dentroZip(file)?.substringAfterLast('.', "") else file.extension)?.lowercase() ?: return emptyList()
         return elenco.filter { est in it.estensioni && installato(c, it.nome) }
     }
 
