@@ -1,0 +1,28 @@
+name: core-android
+
+# Emulatori per Android (core libretro arm64) presi dal buildbot ufficiale di libretro e ripubblicati nella release
+# "core-android" con impronte e misure (core-android.json): l'app li installa uno per uno da qui.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"   # ogni lunedì: versioni aggiornate
+
+permissions:
+  contents: write
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scarica e controlla i core
+        run: |
+          mkdir -p out
+          python3 android/strumenti/core_android.py out
+          ls -la out
+      - name: Pubblica nella release core-android
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view core-android >/dev/null 2>&1 || gh release create core-android --title "Emulatori per Android" --notes "Core libretro arm64 per FMLAB Emulator Android, dal buildbot di libretro (licenze dei rispettivi progetti). Li installa l'app." --prerelease
+          gh release upload core-android out/*.zip out/core-android.json --clobber
