@@ -53,6 +53,7 @@ static pthread_mutex_t G_lock = PTHREAD_MUTEX_INITIALIZER;
 static ANativeWindow *G_finestraNuova; static atomic_bool G_cambioFinestra;
 static atomic_int G_filtro = 0, G_effetto = 0, G_forma = 0;   // filtro: 0 nitido 1 liscio; effetto: 0 1 righe 2 lcd; forma 0 originale 1 16:9 2 pieno
 static atomic_int G_fps100;
+static atomic_int G_immagini;     // fotogrammi con un'immagine vera (software o GPU)
 static char G_azione[1200]; static atomic_int G_daFare;     // 1 salva stato, 2 carica stato
 static atomic_int G_esito;
 
@@ -213,7 +214,6 @@ static void disegna(void) {
 
 // ---- libretro: ambiente --------------------------------------------------------------------------------------
 static char G_messaggi[4096]; static pthread_mutex_t G_lockMsg = PTHREAD_MUTEX_INITIALIZER;
-static atomic_int G_immagini;     // fotogrammi con un'immagine vera (software o GPU)
 static void ricorda(const char *t) {
     pthread_mutex_lock(&G_lockMsg);
     size_t n = strlen(G_messaggi), m = strlen(t);
