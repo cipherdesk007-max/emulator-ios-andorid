@@ -65,7 +65,7 @@ class PadActivity : Activity() {
 }
 
 /** I tasti disegnati a mano: niente ritardi, niente librerie. */
-class PadView(context: Context, private val menu: () -> Unit) : View(context) {
+class PadView(context: Context, private val trasparente: Boolean = false, private val invia: (Int, Boolean) -> Unit = { b, g -> Collegamento.tasto(b, g) }, private val menu: () -> Unit) : View(context) {
     private class Bottone(val bit: Int, var etichetta: String, val rett: RectF = RectF(), var tondo: Boolean = true)
 
     var intestazione = ""; private set
@@ -86,6 +86,10 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
     private val testa = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.LTGRAY; textAlign = Paint.Align.CENTER; textSize = 15 * d }
 
     init { isHapticFeedbackEnabled = true }
+
+    /** Nel gioco: console e tasti senza collegamento di rete. */
+    fun console(disp: Int, nomeCore: String) { disposizione = disp; core = nomeCore; costruisci(); invalidate() }
+    var nascosto = false; set(v) { field = v; invalidate() }
 
     fun imposta(e: Evento.Collegato) {
         intestazione = context.getString(R.string.giocatore, e.giocatore) + " · " + e.titolo.ifEmpty { context.getString(R.string.attesa_gioco) }
@@ -124,8 +128,11 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
     }
 
     override fun onDraw(c: Canvas) {
-        c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), sfondo)
-        c.drawText(intestazione, width / 2f, 30 * d + testa.textSize, testa)
+        if (nascosto) { c.drawRoundRect(rettMenu, 12 * d, 12 * d, pieno); scritta.textSize = 22 * d; c.drawText("≡", rettMenu.centerX(), rettMenu.centerY() - (scritta.descent() + scritta.ascent()) / 2, scritta); return }
+        if (!trasparente) {
+            c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), sfondo)
+            c.drawText(intestazione, width / 2f, 30 * d + testa.textSize, testa)
+        }
         // croce
         val x = centroCroce[0]; val y = centroCroce[1]; val a = raggioCroce; val b = a * 0.36f
         for ((dir, rr) in listOf(Tasto.SU to RectF(x - b, y - a, x + b, y - b), Tasto.GIU to RectF(x - b, y + b, x + b, y + a),
@@ -166,6 +173,7 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         val i = e.actionIndex
+        if (nascosto) { if (e.actionMasked == MotionEvent.ACTION_DOWN && rettMenu.contains(e.getX(i), e.getY(i))) menu(); return true }
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (rettMenu.contains(e.getX(i), e.getY(i))) { menu(); return true }
@@ -177,8 +185,8 @@ class PadView(context: Context, private val menu: () -> Unit) : View(context) {
         }
         val ora = premutiPerDito.values.flatten().toSet()
         if (ora != premuti) {
-            for (b in ora - premuti) Collegamento.tasto(b, true)
-            for (b in premuti - ora) Collegamento.tasto(b, false)
+            for (b in ora - premuti) invia(b, true)
+            for (b in premuti - ora) invia(b, false)
             if ((ora - premuti).isNotEmpty()) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             premuti = ora; invalidate()
         }

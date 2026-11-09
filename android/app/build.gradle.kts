@@ -14,11 +14,14 @@ android {
     compileSdk = 35
     defaultConfig {
         applicationId = "dev.fmlab.controller"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = numero
         versionName = versione
+        ndk { abiFilters += listOf("arm64-v8a") }       // i core libretro per Android sono arm64
+        externalNativeBuild { cmake { arguments += listOf("-DANDROID_STL=none") } }
     }
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
     signingConfigs {
         create("fmlab") {
             // firma fissa, così ogni versione si installa sopra la precedente (vedi android/firma/LEGGIMI.md)
