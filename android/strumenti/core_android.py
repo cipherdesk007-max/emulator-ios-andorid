@@ -17,9 +17,14 @@ CORE = {
     "ppsspp": ("PSP", ["iso", "cso", "pbp", "chd"], ""),
     "mupen64plus_next_gles3": ("Nintendo 64", ["n64", "z64", "v64"], ""),
     "flycast": ("Dreamcast", ["cdi", "gdi", "chd"], "BIOS dc_boot.bin"),
-    "citra": ("Nintendo 3DS", ["3ds", "3dsx", "cci", "cxi"], "Telefoni potenti"),
+    "azahar": ("Nintendo 3DS (Azahar)", ["3ds", "3dsx", "cci", "cxi", "app", "elf"], "Consigliato per il 3DS · telefoni potenti"),
+    "citra": ("Nintendo 3DS (Citra, vecchio)", ["3ds", "3dsx", "cci", "cxi"], "Telefoni potenti"),
     "dolphin": ("GameCube / Wii", ["iso", "gcm", "rvz", "wbfs", "ciso"], "Telefoni potenti"),
 }
+
+# file di sistema che alcuni core vogliono nella cartella di sistema (font, dati): dal buildbot di libretro
+SISTEMA = {"ppsspp": "PPSSPP.zip", "dolphin": "Dolphin.zip"}
+BASE_SISTEMA = "https://buildbot.libretro.com/assets/system/"
 
 def scarica(u):
     r = urllib.request.Request(u, headers={"User-Agent": "FMLAB-Emulator-CI"})
@@ -44,8 +49,17 @@ def main(out):
         with zipfile.ZipFile(os.path.join(out, uscita), "w", zipfile.ZIP_DEFLATED) as z2:
             z2.writestr(f"lib{nome}_libretro.so", lib)
         b = open(os.path.join(out, uscita), "rb").read()
-        elenco.append({"nome": nome, "console": console, "estensioni": est, "nota": nota, "file": uscita,
-                       "sha256": hashlib.sha256(b).hexdigest(), "misura": len(b), "misuraLibreria": len(lib)})
+        voce = {"nome": nome, "console": console, "estensioni": est, "nota": nota, "file": uscita,
+                "sha256": hashlib.sha256(b).hexdigest(), "misura": len(b), "misuraLibreria": len(lib)}
+        if nome in SISTEMA:
+            try:
+                sz = scarica(BASE_SISTEMA + SISTEMA[nome]); zipfile.ZipFile(io.BytesIO(sz)).testzip()
+                fs = f"sistema-{nome}.zip"; open(os.path.join(out, fs), "wb").write(sz)
+                voce.update({"sistema": fs, "sistemaSha256": hashlib.sha256(sz).hexdigest(), "sistemaMisura": len(sz)})
+                print(f"    + file di sistema {SISTEMA[nome]}: {len(sz) // 1024} KB")
+            except Exception as e:
+                print(f"    ! file di sistema {nome}: {e}")
+        elenco.append(voce)
         print(f"ok  {nome}: {len(lib) // 1024} KB")
     json.dump({"schema": 1, "data": datetime.date.today().isoformat(), "fonte": BASE, "core": elenco},
               open(os.path.join(out, "core-android.json"), "w"), indent=1, ensure_ascii=False)
