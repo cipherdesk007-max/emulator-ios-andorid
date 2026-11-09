@@ -1,6 +1,20 @@
 # FMLAB Emulator: novità
 
-## 0.5.2
+## 0.6.0
+- **Android ha gli emulatori veri**: l'APK è ora FMLAB Emulator, non solo il controller.
+  - Motore nativo scritto per Android: OpenGL ES 3 (anche per gli emulatori che disegnano sulla GPU: PSP, N64,
+    3DS), suono AAudio a bassa latenza, ritmo legato al suono come su iPhone, salvataggi scritti interi.
+  - **Emulatori installabili uno per uno** (scheda Emulatori): ognuno si scarica dalla release `core-android` del
+    progetto, presa dal buildbot ufficiale di libretro e controllata con l'impronta. Su Android, grazie al JIT, ci
+    sono anche N64, Dreamcast, 3DS e GameCube/Wii, per i telefoni potenti.
+  - **Giochi** da FMLAB/Giochi e da Download, divisi per console. Salvataggi in FMLAB/Salvataggi e BIOS in
+    FMLAB/BIOS, cartelle che restano anche disinstallando l'app.
+  - **Controller fisici**: i tasti sullo schermo spariscono, ogni controller è un giocatore, levetta analogica,
+    tasto Home = menu.
+  - Menu del gioco (tasto Indietro): salva e carica stato, avanti veloce (muto), immagine.
+  - Impostazioni spiegate: qualità, immagine, effetto TV/LCD, forma.
+  - *Controller 2* resta: il telefono Android può ancora fare da controller per un iPhone.
+
 - **Giochi compressi estratti una volta sola**. Prima l'app teneva solo l'ultimo gioco estratto, nella cache, e
   cancellava il precedente: cambiando gioco si estraeva tutto di nuovo. Anche iOS e l'aggiornamento dei dati
   svuotavano la cache. Ora ogni archivio si estrae una sola volta in Giochi › Estratti e da lì si apre subito;
