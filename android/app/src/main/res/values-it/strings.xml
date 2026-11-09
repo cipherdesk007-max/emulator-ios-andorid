@@ -96,4 +96,9 @@
     <string name="usa_tv">Usa la TV per i giochi</string>
     <string name="tv_massima">Qualità massima sulla TV</string>
     <string name="tv_spiega">Con un cavo USB-C/HDMI o una trasmissione che crea un secondo schermo (Miracast, Samsung Smart View…) la TV mostra solo il gioco e il telefono diventa il controller (DS/3DS: il centro del telefono è lo schermo da toccare). Chromecast può solo copiare il telefono: allora gioca in orizzontale.</string>
+    <string name="riprendi_chiedi">Riprendi da dove eri rimasto?</string>
+    <string name="riprendi_si">Riprendi</string>
+    <string name="riprendi_no">Ricomincia</string>
+    <string name="cerco_giochi">Cerco i tuoi giochi…</string>
+    <string name="recenti">Giocati di recente</string>
 </resources>

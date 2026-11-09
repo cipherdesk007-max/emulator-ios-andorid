@@ -96,4 +96,9 @@
     <string name="usa_tv">Use the TV for games</string>
     <string name="tv_massima">Maximum quality on the TV</string>
     <string name="tv_spiega">With a USB-C/HDMI cable or screen casting that makes a second screen (Miracast, Samsung Smart View…) the TV shows only the game and the phone becomes the controller (DS/3DS: the middle of the phone is the touch screen). Chromecast can only copy the phone: then play in landscape.</string>
+    <string name="riprendi_chiedi">Pick up where you left off?</string>
+    <string name="riprendi_si">Resume</string>
+    <string name="riprendi_no">Start over</string>
+    <string name="cerco_giochi">Looking for your games…</string>
+    <string name="recenti">Recently played</string>
 </resources>

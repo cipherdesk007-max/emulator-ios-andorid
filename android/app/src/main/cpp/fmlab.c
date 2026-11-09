@@ -42,6 +42,7 @@ static enum retro_pixel_format G_formato = RETRO_PIXEL_FORMAT_0RGB1555;
 static struct retro_system_av_info G_av;
 static atomic_bool G_varNuove;
 static struct retro_hw_render_callback G_hw; static bool G_usaHw;
+static atomic_bool G_fboNuovo;
 
 // ---- input ---------------------------------------------------------------------------------------------------
 static atomic_uint G_tasti[4];
@@ -87,11 +88,15 @@ static aaudio_data_callback_result_t richiamoAudio(AAudioStream *s, void *u, voi
     atomic_store(&G_leggi, l);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
+static atomic_bool G_riapriAudio; static int G_frequenza;
+static void erroreAudio(AAudioStream *s, void *u, aaudio_result_t e) { atomic_store(&G_riapriAudio, true); }   // cuffie, Bluetooth…
 static void apriAudio(int frequenza) {
+    G_frequenza = frequenza;
     AAudioStreamBuilder *b; if (AAudio_createStreamBuilder(&b) != AAUDIO_OK) return;
     AAudioStreamBuilder_setFormat(b, AAUDIO_FORMAT_PCM_I16); AAudioStreamBuilder_setChannelCount(b, 2);
     AAudioStreamBuilder_setSampleRate(b, frequenza); AAudioStreamBuilder_setPerformanceMode(b, AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
     AAudioStreamBuilder_setDataCallback(b, richiamoAudio, NULL);
+    AAudioStreamBuilder_setErrorCallback(b, erroreAudio, NULL);
     if (AAudioStreamBuilder_openStream(b, &G_audio) == AAUDIO_OK) AAudioStream_requestStart(G_audio); else G_audio = NULL;
     AAudioStreamBuilder_delete(b);
 }
@@ -282,7 +287,7 @@ static bool ambiente(unsigned cmd, void *data) {
     case RETRO_ENVIRONMENT_GET_FASTFORWARDING: *(bool *)data = atomic_load(&G_veloce); return true;
     case RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE: *(int *)data = 3; return true;
     case RETRO_ENVIRONMENT_SET_GEOMETRY: G_av.geometry = *(const struct retro_game_geometry *)data; return true;
-    case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: G_av = *(const struct retro_system_av_info *)data; return true;
+    case RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO: G_av = *(const struct retro_system_av_info *)data; atomic_store(&G_fboNuovo, true); return true;
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned *)data = RETRO_HW_CONTEXT_OPENGLES3; return true;
     case RETRO_ENVIRONMENT_SET_HW_RENDER: {
         struct retro_hw_render_callback *h = data;
@@ -371,6 +376,12 @@ static void *giro(void *u) {
         if (G_usaHw) { glBindFramebuffer(GL_FRAMEBUFFER, G_fbo); }
         C.run();
         if (G_nuova) { G_nuova = false; disegna(); }
+        if (atomic_exchange(&G_fboNuovo, false) && G_usaHw && (G_av.geometry.max_width > G_fboW || G_av.geometry.max_height > G_fboH)) {
+            fboPronto(G_av.geometry.max_width, G_av.geometry.max_height);   // più grande: il core disegna nel nuovo
+        }
+        if (atomic_exchange(&G_riapriAudio, false) && G_audio) {
+            AAudioStream_close(G_audio); G_audio = NULL; apriAudio(G_frequenza);
+        }
         fotogrammi++;
         double adesso = ora();
         if (adesso - conta >= 0.5) { atomic_store(&G_fps100, (int)(fotogrammi * 100 / (adesso - conta))); fotogrammi = 0; conta = adesso; }

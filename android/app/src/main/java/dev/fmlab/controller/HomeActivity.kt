@@ -54,7 +54,7 @@ class HomeActivity : Activity() {
         Emulatori.carica(this) { if (!isFinishing) mostra() }
         Aggiornamento.controlla(packageManager.getPackageInfo(packageName, 0).versionName ?: "0") { v -> if (v != null && !isFinishing) { versioneNuova = v; mostra() } }
     }
-    override fun onResume() { super.onResume(); mostra() }
+    override fun onResume() { super.onResume(); firmaCercata = ""; mostra() }
 
     private fun accessoFile() = if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED
     private fun chiediAccesso() {
@@ -94,18 +94,71 @@ class HomeActivity : Activity() {
             val box = scatola(); box.addView(testo(getString(R.string.nessun_emulatore), 14f, Color.LTGRAY))
             box.addView(bottone(getString(R.string.scheda_emulatori)) { scheda = 1; mostra() }); contenuto.addView(box); return
         }
-        val est = Emulatori.elenco.filter { Emulatori.installato(this, it.nome) }.flatMap { it.estensioni }.toSet()
-        val lista = Archivio.cerca(est)
+        // la ricerca gira su un filo a parte (con tanti giochi o .zip non blocca l'app); si rifà se cambiano gli emulatori
+        val firma = Emulatori.elenco.filter { Emulatori.installato(this, it.nome) }.joinToString { it.nome }
+        if (firma != firmaCercata) cercaGiochi(firma)
+        val lista = elencoGiochi
+        if (lista == null) { contenuto.addView(testo(getString(R.string.cerco_giochi), 14f, Color.LTGRAY).apply { setPadding(0, dp(12), 0, 0) }); return }
         if (lista.isEmpty()) { contenuto.addView(testo(getString(R.string.nessun_gioco, Archivio.giochi.path), 14f, Color.LTGRAY).apply { setPadding(0, dp(12), 0, 0) }); return }
-        for ((console, giochi) in lista.groupBy { f -> Emulatori.per(this, f).firstOrNull()?.console ?: "?" }.toSortedMap()) {
+        val perPercorso = lista.associateBy { it.file.path }
+        val recenti = (prefs.getString("recenti", "") ?: "").split('\n').mapNotNull { perPercorso[it] }
+        if (recenti.isNotEmpty()) {
+            contenuto.addView(testo(getString(R.string.recenti).uppercase(), 13f, rosso, true).apply { setPadding(0, dp(14), 0, dp(4)) })
+            for (v in recenti) contenuto.addView(rigaGioco(v, true))
+        }
+        for ((console, giochi) in lista.groupBy { it.console }.toSortedMap()) {
             contenuto.addView(testo(console.uppercase() + " · " + giochi.size, 13f, rosso, true).apply { setPadding(0, dp(14), 0, dp(4)) })
-            for (g in giochi) contenuto.addView(riga(g.nameWithoutExtension, g.parentFile?.name ?: "") { apri(g) })
+            for (v in giochi) contenuto.addView(rigaGioco(v, false))
         }
         contenuto.addView(testo(getString(R.string.dove_giochi, Archivio.giochi.path), 12f, Color.GRAY).apply { setPadding(0, dp(16), 0, dp(24)) })
     }
+
+    /** Un gioco trovato: file, console, emulatore che lo apre ed estensione vera (quella dentro lo .zip). */
+    class Voce(val file: File, val console: String, val core: String, val est: String)
+    private var elencoGiochi: List<Voce>? = null
+    private var firmaCercata = ""
+    private var cercaN = 0
+    private fun adatti(g: File) = Emulatori.per(this, g).let { a -> if (a.any { it.nome == "azahar" }) a.filter { it.nome != "citra" } else a }   // per il 3DS Azahar è il migliore
+    private fun cercaGiochi(firma: String) {
+        firmaCercata = firma; val n = ++cercaN
+        val est = Emulatori.elenco.filter { Emulatori.installato(this, it.nome) }.flatMap { it.estensioni }.toSet()
+        Thread {
+            val l = try { Archivio.cerca(est).map { f ->
+                val e = if (f.extension.equals("zip", true)) Archivio.dentroZip(f)?.substringAfterLast('.')?.lowercase() ?: "zip" else f.extension.lowercase()
+                val em = adatti(f).firstOrNull()
+                Voce(f, em?.console ?: "?", em?.nome ?: "", e)
+            } } catch (_: Exception) { emptyList() }
+            runOnUiThread {
+                if (n != cercaN || isFinishing) return@runOnUiThread
+                val prima = elencoGiochi?.map { it.file.path }
+                elencoGiochi = l
+                if (scheda == 0 && prima != l.map { it.file.path }) mostra()   // ridisegna solo se è cambiato qualcosa
+            }
+        }.start()
+    }
+    private fun ricordaRecente(g: File) {
+        val l = listOf(g.path) + (prefs.getString("recenti", "") ?: "").split('\n').filter { it.isNotEmpty() && it != g.path }
+        prefs.edit().putString("recenti", l.take(5).joinToString("\n")).apply()
+    }
+    private fun rigaGioco(v: Voce, recente: Boolean) = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(dp(10), dp(8), dp(14), dp(8)); isClickable = true
+        background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.rgb(28, 22, 22)) }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(6) }
+        val img = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER; setImageResource(R.drawable.logo); imageAlpha = 90
+            background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(Color.rgb(40, 30, 30)) }; clipToOutline = true
+        }
+        addView(img, LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(12) })
+        Copertine.metti(context, img, v.file.nameWithoutExtension, v.core, v.est)
+        val testi = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        testi.addView(testo(v.file.nameWithoutExtension, 15f, Color.WHITE))
+        testi.addView(testo(if (recente) v.console else (v.file.parentFile?.name ?: ""), 11f, Color.GRAY))
+        addView(testi, LinearLayout.LayoutParams(0, -2, 1f))
+        setOnClickListener { apri(v.file) }
+    }
     private fun apri(g: File) {
-        var adatti = Emulatori.per(this, g)
-        if (adatti.any { it.nome == "azahar" }) adatti = adatti.filter { it.nome != "citra" }   // per il 3DS Azahar è il migliore
+        val adatti = adatti(g)
+        ricordaRecente(g)
         fun parti(e: Emulatore, file: File) = startActivity(Intent(this, GiocoActivity::class.java).putExtra("core", e.nome).putExtra("gioco", file.path))
         fun via(e: Emulatore) {
             if (!g.extension.equals("zip", true)) return parti(e, g)

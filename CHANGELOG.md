@@ -1,5 +1,19 @@
 # FMLAB Emulator: novità
 
+## 0.6.6
+Controllo completo dell'app Android: quattro correzioni e due cose che c'erano solo su iPhone.
+- **Niente più blocchi con tanti giochi**: la ricerca dei giochi (anche dentro gli .zip) gira in sottofondo; la lista
+  appare appena è pronta e si aggiorna da sola quando installi un emulatore.
+- **Il suono non sparisce più**: se si stacca o si attacca una cuffia Bluetooth durante il gioco, l'audio si riapre
+  da solo.
+- **Grafica non più tagliata**: se un gioco cambia risoluzione a metà (PSP, N64, 3DS), lo spazio di disegno si
+  ingrandisce da solo.
+- **Riprendi**: uscendo dal gioco o passando a un'altra app, il punto in cui sei si salva da solo; quando riapri il
+  gioco l'app chiede "Riprendi da dove eri rimasto?" (oppure Ricomincia).
+- **Copertine dei giochi**: arrivano da sole dall'archivio di libretro (NES, SNES, Game Boy, GBA, Mega Drive, PS1,
+  PSP, DS, 3DS, N64, Dreamcast, GameCube) e restano salvate nel telefono.
+- **Giocati di recente**: gli ultimi 5 giochi aperti in cima alla lista.
+
 ## 0.6.5
 - **Android sulla TV come su iPhone**: con un cavo USB-C/HDMI o una trasmissione che crea un secondo schermo
   (Miracast, Samsung Smart View…), la TV mostra solo il gioco e il telefono diventa il controller.

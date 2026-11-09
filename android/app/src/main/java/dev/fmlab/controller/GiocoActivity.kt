@@ -139,6 +139,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                 } else {
                     avviato = true; if (prefs.getBoolean("fps", false)) mostraFps()
                     etichetta.postDelayed({ controllaImmagine() }, 8000)
+                    chiediRiprendi()
                     // giocatori 2…4 dal Wi-Fi (iPhone o Android con Controller 2)
                     Host.cambiati = { p -> invia(p) }
                     Host.avvisa = { t -> runOnUiThread { Toast.makeText(this, if (t.startsWith("−")) getString(R.string.giocatore_uscito, t.drop(2)) else getString(R.string.giocatore_entrato, t), Toast.LENGTH_SHORT).show() } }
@@ -146,6 +147,26 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                 }
             }
         }.start()
+    }
+
+    // MARK: Riprendi (come su iPhone): uscendo o andando in background si salva da solo, al rientro si chiede
+    private val autoStato get() = File(Archivio.salvataggi, gioco.nameWithoutExtension + ".auto.state")
+    private var filoSalva: Thread? = null
+    private fun chiediRiprendi() {
+        val f = autoStato
+        if (!f.exists() || f.length() == 0L) return
+        Motore.pausa(true)
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(gioco.nameWithoutExtension).setMessage(R.string.riprendi_chiedi)
+            .setPositiveButton(R.string.riprendi_si) { _, _ ->
+                Thread { val ok = Motore.caricaStato(f.path); runOnUiThread { if (!ok) Toast.makeText(this, R.string.stato_non_riuscito, Toast.LENGTH_SHORT).show(); Motore.pausa(false) } }.start()
+            }
+            .setNegativeButton(R.string.riprendi_no) { _, _ -> Motore.pausa(false) }.setCancelable(false).show()
+    }
+    /** Salva il punto in cui sei (solo se il gioco ha mostrato qualcosa), su un filo a parte per non bloccare lo schermo. */
+    private fun salvaAuto(poi: (() -> Unit)? = null) {
+        if (!avviato || Motore.immagini() == 0 || filoSalva?.isAlive == true) { poi?.invoke(); return }
+        val f = autoStato
+        filoSalva = Thread { Motore.salvaStato(f.path); poi?.let { runOnUiThread(it) } }.also { it.start() }
     }
 
     /** Il gioco gira ma non manda immagini: si dice perché, invece di lasciare lo schermo nero. */
@@ -188,7 +209,9 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
 
     override fun onResume() { super.onResume(); if (avviato) Motore.pausa(false) }
     override fun onPause() { super.onPause(); if (avviato) Motore.pausa(true) }
+    override fun onStop() { super.onStop(); if (!isFinishing) salvaAuto() }
     override fun onDestroy() {
+        try { filoSalva?.join(4000) } catch (_: Exception) {}
         (getSystemService(Context.INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this)
         schermi.unregisterDisplayListener(ascoltaSchermi); tv?.let { tv = null; try { it.dismiss() } catch (_: Exception) {} }
         Host.cambiati = null; Host.avvisa = null; Host.ferma()
@@ -211,7 +234,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                 2 -> Toast.makeText(this, if (stato.exists() && Motore.caricaStato(stato.path)) R.string.stato_caricato else R.string.stato_non_riuscito, Toast.LENGTH_SHORT).show()
                 3 -> { veloce = !veloce; Motore.veloce(veloce, prefs.getBoolean("muto", true)) }
                 4 -> { scegliImmagine(); return@setItems }
-                5 -> { finish(); return@setItems }
+                5 -> { salvaAuto { finish() }; return@setItems }
                 6 -> { scegliSchermi(); return@setItems }
             }
             Motore.pausa(false)
