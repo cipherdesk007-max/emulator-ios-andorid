@@ -18,6 +18,8 @@ final class FMLABLibreria: ObservableObject {
 }
 
 struct FMLABSezioniGioco: View {
+    enum Parte { case comandi, grafica, tv, copie, console, avanzate }
+    var parte: Parte
     @ObservedObject private var libreria = FMLABLibreria.shared
     @State private var statoBIOS: [String: Bool] = [:]
     @State private var controllando = false
@@ -32,6 +34,7 @@ struct FMLABSezioniGioco: View {
     @AppStorage("FMLAB.comandi.sopra") private var sopra = true
     @AppStorage("FMLAB.grafica.qualita") private var qualita = (UserDefaults.standard.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true) ? "migliorata" : "originale"
     @AppStorage("FMLAB.grafica.tvMassima") private var tvMassima = true
+    @AppStorage("FMLAB.grafica.duplica") private var duplica = true
     @AppStorage("FMLAB.grafica.textureHD") private var textureHD = false
     @AppStorage("FMLAB.grafica.coloriLCD") private var coloriLCD = true
     @AppStorage("FMLAB.grafica.sciaLCD") private var sciaLCD = false
@@ -49,6 +52,7 @@ struct FMLABSezioniGioco: View {
 
     var body: some View {
         Group {
+            if parte == .comandi {
             Section {
                 Toggle(isOn: $sopra) { VStack(alignment: .leading, spacing: 3) { Text("Bigger Screen"); Text("The game takes all the space it can and the controls sit on top, see-through (above all on DS and in landscape).").font(.caption).foregroundColor(.secondary) } }
                 NavigationLink { FMLABComandiView() } label: { HStack { Label("Controls Look", systemImage: "gamecontroller"); Spacer(); Text(LF(FMLABTemaComandi.attuale.nome)).foregroundColor(.secondary) } }
@@ -58,6 +62,8 @@ struct FMLABSezioniGioco: View {
                 Toggle(isOn: $mischia) { VStack(alignment: .leading, spacing: 3) { Text("Keep Music from Other Apps"); Text("Off: opening a game pauses Spotify and other music, like a real game does.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $riprendi) { VStack(alignment: .leading, spacing: 3) { Text("Resume Where I Left Off"); Text("When you quit a game it is saved; next time you can continue from there.").font(.caption).foregroundColor(.secondary) } }
             } header: { Text("Controls and Saves") }
+            }
+            if parte == .console {
             if !FMLABDati.bios.isEmpty {
                 Section {
                     ForEach(FMLABDati.bios, id: \.self) { b in
@@ -75,13 +81,18 @@ struct FMLABSezioniGioco: View {
                     Text("Put your own BIOS files in Files › FMLAB Emulator › Giochi › BIOS. A green seal means the file is the right one (checked by its fingerprint); orange means a file with that name is there but it is different.")
                 }
             }
+            }
+            if parte == .grafica {
             Section {
                 FMLABRigaScelta(titolo: "Quality", opzioni: FMLABScelte.qualita, scelta: $qualita)
                 Toggle(isOn: $tvMassima) { VStack(alignment: .leading, spacing: 3) { Text("Maximum on the TV"); Text("With Enhanced chosen, a game opened with the TV connected goes to Maximum: the TV is big and the iPhone only has to emulate.").font(.caption).foregroundColor(.secondary) } }
                 FMLABRigaScelta(titolo: "Picture", opzioni: FMLABScelte.filtro, scelta: $filtro)
+                Toggle(isOn: $duplica) { VStack(alignment: .leading, spacing: 3) { Text("Steady 60 Hz (PSP)"); Text("Many PSP games run at 30 frames per second: each frame is shown twice at an even pace, so movement is regular instead of jerky.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $gpu) { VStack(alignment: .leading, spacing: 3) { Text("Graphics on the GPU (PSP)"); Text("The 3D is drawn by the iPhone's graphics chip: faster and sharper (2× with Enhanced Graphics). Turn it off only if a game shows broken graphics.").font(.caption).foregroundColor(.secondary) } }
                 FMLABRigaScelta(titolo: "Shape in Landscape", opzioni: FMLABScelte.forma, scelta: $formato)
             } header: { Text("Graphics") } footer: { Text("Tap each item: every choice says what it changes. Valid from the next game you open; Picture, Shape and Quality also change right away from the game menu › Picture.") }
+            }
+            if parte == .grafica {
             Section {
                 Toggle(isOn: $textureHD) { VStack(alignment: .leading, spacing: 3) { Text("HD Textures (PSP)"); Text("Redraws the game textures at double size with xBRZ: sharper writing and surfaces. The first seconds of a new area can stutter while they are made.").font(.caption).foregroundColor(.secondary) } }
                 Toggle(isOn: $coloriLCD) { VStack(alignment: .leading, spacing: 3) { Text("True Handheld Colours (GB Color, GBA)"); Text("The colours as they looked on the real screen, not the over-bright raw ones.").font(.caption).foregroundColor(.secondary) } }
@@ -89,6 +100,8 @@ struct FMLABSezioniGioco: View {
                 FMLABRigaScelta(titolo: "Game Boy Colours", opzioni: FMLABScelte.paletteGB, scelta: $paletteGB)
                 FMLABRigaScelta(titolo: "NES Colours", opzioni: FMLABScelte.paletteNES, scelta: $paletteNES)
             } header: { Text("Retro Look") } footer: { Text("Pixel Art HD (in Picture) enlarges NES, Game Boy, GBA and SNES 4× with Scale2x: clean edges instead of steps, then soft. Valid from the next game you open.") }
+            }
+            if parte == .tv {
             Section {
                 Toggle("Use the External Screen for Games", isOn: $usaEsterno)
                 HStack { Label("External screen", systemImage: "tv"); Spacer(); Text(schermoEsterno ?? LF("None")).foregroundColor(schermoEsterno == nil ? .secondary : .green) }
@@ -97,12 +110,16 @@ struct FMLABSezioniGioco: View {
             } header: { Text("AirPlay and TV") } footer: {
                 Text("The AirPlay button (sound only) sends just the audio, like music: the picture stays on the iPhone. iOS lets only Screen Mirroring in Control Center send the picture, or a USB-C/HDMI cable. On DS the iPhone keeps the screens for touch.")
             }
+            }
+            if parte == .copie {
             Section {
                 Button { FMLABCopia.esporta { errore = $0 } } label: { Label("Export Backup…", systemImage: "square.and.arrow.up") }
                 Button { FMLABSceltaFile.apri(cartella: true) { u in if let u = u.first { errore = FMLABCopia.ripristina(da: u); ricarica() } } } label: { Label("Restore Backup…", systemImage: "arrow.counterclockwise") }
             } header: { Text("Backup") } footer: {
                 Text("A folder with your game saves, states, BIOS, covers and Game Emulator settings, to keep in Files or iCloud or to move to another iPhone. Games are not included.")
             }
+            }
+            if parte == .console {
             Section {
                 ForEach(FMLABEmulatore.core(), id: \.nome) { c in
                     let quanti = libreria.conteggio[c.nome] ?? 0
@@ -122,6 +139,8 @@ struct FMLABSezioniGioco: View {
             } header: { Text("Consoles") } footer: {
                 Text("Turn off a console to hide its games from the list (the files are not touched). On iPhone all the emulators are already inside the app: iOS does not let an app add new programs after it is installed, so here you choose which consoles to see. Native emulators (libretro cores), no JIT needed.")
             }
+            }
+            if parte == .avanzate {
             Section {
                 HStack { Text("Version"); Spacer(); Text(versioneDati).font(.callout.monospaced()).foregroundColor(.secondary) }
                 HStack {
@@ -140,6 +159,7 @@ struct FMLABSezioniGioco: View {
                 } label: { HStack { Label("Check Now", systemImage: "arrow.triangle.2.circlepath"); if controllando { Spacer(); ProgressView() } } }.disabled(controllando)
             } header: { Text("Engine Data") } footer: {
                 Text("Extensions, emulator options, BIOS list and notices come from fmlab-retro (dati/emulatore.json), without a new app: when there is something new FMLAB asks before using it, then cleans up files that are no longer needed. The emulators themselves arrive with app updates.")
+            }
             }
         }
         .onAppear { controllaBIOS(); versioneDati = FMLABDati.versione; schermoEsterno = FMLABGiocoController.nomeSchermoEsterno() }

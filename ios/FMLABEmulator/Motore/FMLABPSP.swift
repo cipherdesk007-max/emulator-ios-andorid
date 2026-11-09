@@ -8,7 +8,7 @@ import UIKit
 import Compression
 
 enum FMLABPSP {
-    struct Dati { let icona: UIImage?; let titolo: String? }
+    struct Dati { let icona: UIImage?; let titolo: String?; var codice: String? = nil }
 
     static func leggi(_ url: URL) -> Dati? {
         guard let h = try? FileHandle(forReadingFrom: url) else { return nil }
@@ -66,8 +66,9 @@ enum FMLABPSP {
         guard let pg = voci(radice.u32(2), radice.u32(10)).first(where: { $0.0 == "PSP_GAME" && $0.3 }) else { return nil }
         let dentro = voci(pg.1, pg.2)
         let icona = dentro.first { $0.0 == "ICON0.PNG" }.flatMap { file($0.1, $0.2, max: 512 * 1024) }.flatMap(UIImage.init(data:))
-        let titolo = dentro.first { $0.0 == "PARAM.SFO" }.flatMap { file($0.1, $0.2, max: 64 * 1024) }.flatMap(sfo)
-        return icona == nil && titolo == nil ? nil : Dati(icona: icona, titolo: titolo)
+        let param = dentro.first { $0.0 == "PARAM.SFO" }.flatMap { file($0.1, $0.2, max: 64 * 1024) }
+        let titolo = param.flatMap { sfo($0, "TITLE") }, codice = param.flatMap { sfo($0, "DISC_ID") }
+        return icona == nil && titolo == nil ? nil : Dati(icona: icona, titolo: titolo, codice: codice)
     }
 
     // MARK: EBOOT.PBP
@@ -75,20 +76,21 @@ enum FMLABPSP {
         guard let t = pezzo(0, 40) else { return nil }
         let o = (0..<8).map { UInt64(t.u32(8 + $0 * 4)) }
         func tra(_ a: Int, max: UInt64) -> Data? { let n = o[a + 1] > o[a] ? o[a + 1] - o[a] : 0; return n > 0 && n <= max ? pezzo(o[a], Int(n)) : nil }
-        let titolo = tra(0, max: 64 * 1024).flatMap(sfo)
+        let param = tra(0, max: 64 * 1024)
+        let titolo = param.flatMap { sfo($0, "TITLE") }, codice = param.flatMap { sfo($0, "DISC_ID") }
         let icona = tra(1, max: 512 * 1024).flatMap(UIImage.init(data:))
-        return icona == nil && titolo == nil ? nil : Dati(icona: icona, titolo: titolo)
+        return icona == nil && titolo == nil ? nil : Dati(icona: icona, titolo: titolo, codice: codice)
     }
 
-    /// PARAM.SFO: tabella chiave → valore; serve TITLE.
-    private static func sfo(_ d: Data) -> String? {
+    /// PARAM.SFO: tabella chiave → valore (TITLE = titolo, DISC_ID = codice del gioco, es. ULES01234).
+    private static func sfo(_ d: Data, _ chiave: String) -> String? {
         guard d.count > 20, d.prefix(4) == Data([0, 0x50, 0x53, 0x46]) else { return nil }
         let chiavi = Int(d.u32(8)), valori = Int(d.u32(12)), n = Int(d.u32(16))
         for i in 0..<min(n, 64) {
             let e = 20 + i * 16; guard e + 16 <= d.count else { break }
             let ko = chiavi + Int(d.u16(e)), lunghezza = Int(d.u32(e + 4)), vo = valori + Int(d.u32(e + 12))
             guard ko < d.count, let fine = d[ko...].firstIndex(of: 0) else { continue }
-            if String(decoding: d[ko..<fine], as: UTF8.self) == "TITLE", vo + lunghezza <= d.count {
+            if String(decoding: d[ko..<fine], as: UTF8.self) == chiave, vo + lunghezza <= d.count {
                 let t = String(decoding: d[vo..<(vo + lunghezza)].prefix { $0 != 0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
                 return t.isEmpty ? nil : t
             }

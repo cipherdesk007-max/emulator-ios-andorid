@@ -974,6 +974,7 @@ final class FMLABGiocoController: UIViewController {
         view.setNeedsLayout()
     }
     private func staccaEsterno() {
+        effettoSuTV.removeFromSuperlayer(); effettoTVPer = ""
         giroEsterno?.invalidate(); giroEsterno = nil
         esterno?.removeFromSuperview(); esterno = nil; specchio = nil; toccoDS.toccato = nil; toccoTV = nil; puntoTV.removeFromSuperlayer()
         FMLABTV.shared.inUso(nil)
@@ -1000,6 +1001,27 @@ final class FMLABGiocoController: UIViewController {
         else { puntoTV.isHidden = true }
         CATransaction.commit()
     }
+    /// Righe del televisore a tubo o griglia LCD anche sulla TV (prima c'erano solo sul telefono).
+    private let effettoSuTV = CALayer()
+    private var effettoTVPer = ""
+    private func effettoTV(_ f: String, _ l: CALayer) {
+        if effettoSuTV.superlayer !== l { l.addSublayer(effettoSuTV) }
+        effettoSuTV.frame = l.bounds
+        guard f == "tv" || f == "lcd", let e = emulatore, e.misuraImmagine.height > 0, !(e.tocco) else { effettoSuTV.backgroundColor = nil; effettoTVPer = ""; return }
+        let py = l.bounds.height / Self.righeVere(e.misuraImmagine.height), px = py
+        let chiave = "\(f) \(Int(py * 100)) \(Int(l.bounds.width))"
+        if chiave == effettoTVPer { return }
+        effettoTVPer = chiave
+        let scala = esterno?.window?.screen.scale ?? 2
+        let cella = CGSize(width: f == "lcd" ? max(1, px) : 1, height: max(1, py))
+        let img = UIGraphicsImageRenderer(size: cella).image { c in
+            UIColor(white: 0, alpha: f == "tv" ? 0.32 : 0.22).setFill()
+            let riga = max(1 / scala, cella.height * (f == "tv" ? 0.4 : 0.18))
+            c.fill(CGRect(x: 0, y: cella.height - riga, width: cella.width, height: riga))
+            if f == "lcd" { c.fill(CGRect(x: cella.width - max(1 / scala, cella.width * 0.18), y: 0, width: max(1 / scala, cella.width * 0.18), height: cella.height)) }
+        }
+        effettoSuTV.backgroundColor = UIColor(patternImage: img).cgColor
+    }
     @objc private func copiaSuEsterno() {
         guard let e = esterno, let l = specchio, let v = emulatore?.vista else { return }
         CATransaction.begin(); CATransaction.setDisableActions(true)
@@ -1018,6 +1040,7 @@ final class FMLABGiocoController: UIViewController {
             if n >= 1, n * base / sc >= h * 0.85 { h = n * base / sc; w = h * r }
         }
         l.frame = CGRect(x: ((b.width - w) / 2).rounded(), y: ((b.height - h) / 2).rounded(), width: w, height: h)
+        effettoTV(filtro, l)
         if toccoTV != nil { mettiPuntoTV() }
         CATransaction.commit()
     }
@@ -1141,6 +1164,8 @@ final class FMLABGiocoController: UIViewController {
                                  "pcsx_rearmed_dithering": "disabled", "ppsspp_internal_resolution": "1440x816"]
     /// Console 2D a cui si può applicare Pixel art HD.
     static let console2D: Set<String> = ["fceumm", "gambatte", "mgba", "bsnes"]
+    /// Righe della console anche quando è disegnata più grande (PSP 816 → 272, DS 384 → 192, PS1 480 → 240).
+    static func righeVere(_ h: CGFloat) -> CGFloat { h >= 700 ? h / 3 : h >= 380 ? h / 2 : h }
     static func morbido(_ filtro: String) -> Bool { filtro == "morbido" || filtro == "hd" }
     /// Pixel netti solo dove ha senso: giochi 2D alla risoluzione vera. Il 3D (PSP sempre; PS1 e DS quando sono
     /// disegnati più grandi) si ingrandisce liscio: a pixel quadrati sulla TV diventa tutto a blocchi.
@@ -1165,6 +1190,8 @@ final class FMLABGiocoController: UIViewController {
         let tex = d.bool(forKey: "FMLAB.grafica.textureHD")
         o["ppsspp_texture_scaling_level"] = tex ? "2x" : "disabled"
         o["ppsspp_texture_scaling_type"] = "xbrz"
+        o["ppsspp_texture_replacement"] = "enabled"          // pacchetti grafici in Giochi/Mod/PSP
+        o["ppsspp_frame_duplication"] = (d.object(forKey: "FMLAB.grafica.duplica") as? Bool ?? true) ? "enabled" : "disabled"
         o["ppsspp_texture_deposterize"] = tex ? "enabled" : "disabled"
         let colori = d.object(forKey: "FMLAB.grafica.coloriLCD") as? Bool ?? true
         o["mgba_color_correction"] = colori ? "Auto" : "OFF"
@@ -1183,17 +1210,33 @@ final class FMLABGiocoController: UIViewController {
         return o
     }
     /// Menu del gioco › Immagine…: filtro, forma e grafica migliorata cambiano subito, senza uscire dal gioco.
+    /// Pacchetti grafici della PSP: codice del gioco, dove metterli e se ce n'è uno.
+    private func spiegaMod() {
+        guard let e = emulatore else { return }
+        let s = FMLABMod.stato(gioco.url)
+        let testo: String
+        if let s {
+            testo = String(format: LF(s.presente ? "Pack found for %@: it is in use. To change it, replace the folder." : "Game code: %@. Put the pack (the folder with textures.ini and the images) in Files › FMLAB Emulator › Giochi › Mod › PSP › %@ and open the game again."), s.codice, s.codice)
+            try? FileManager.default.createDirectory(at: s.cartella, withIntermediateDirectories: true)
+        } else { testo = LF("The game code could not be read (zipped game or unusual file): unzip it to use a texture pack.") }
+        let m = UIAlertController(title: LF("Texture Packs"), message: testo + "\n\n" + LF("Packs made by the community redraw the textures in HD: the game looks remade. FMLAB does not download or include them: use packs you are allowed to use."), preferredStyle: .alert)
+        if let c = s?.codice { m.addAction(UIAlertAction(title: LF("Copy the Code"), style: .default) { _ in UIPasteboard.general.string = c; e.inPausa = false }) }
+        m.addAction(UIAlertAction(title: "OK", style: .cancel) { _ in e.inPausa = false })
+        present(m, animated: true)
+    }
     private func scegliImmagine() {
         guard let e = emulatore else { return }
         let d = UserDefaults.standard
         let filtro = d.string(forKey: "FMLAB.grafica.filtro") ?? "netti", forma = d.string(forKey: "FMLAB.grafica.formato") ?? "originale"
         let q = Self.qualita()
-        let m = UIAlertController(title: LF("Picture"), message: LF("Changes right away. Shape applies in landscape."), preferredStyle: .actionSheet)
+        let tre = !Self.console2D.contains(gioco.core.nome)
+        let m = UIAlertController(title: LF("Picture"), message: LF(tre ? "Changes right away, on the iPhone and on the TV. The 3D is always smooth: here you choose effects, shape and quality." : "Changes right away, on the iPhone and on the TV. Shape applies in landscape and on the TV."), preferredStyle: .actionSheet)
         func voce(_ t: String, _ scelto: Bool, _ fai: @escaping () -> Void) {
             m.addAction(UIAlertAction(title: (scelto ? "✓ " : "") + t, style: .default) { [weak self] _ in
                 fai(); self?.filtroPer = .zero; self?.view.setNeedsLayout(); self?.view.layoutIfNeeded(); e.inPausa = false })
         }
-        for (k, t) in [("netti", "Sharp Pixels"), ("hd", "Pixel Art HD"), ("morbido", "Smooth"), ("tv", "TV (scanlines)"), ("lcd", "Handheld LCD")] {
+        let filtri = tre ? [("morbido", "No Effect"), ("tv", "TV (scanlines)"), ("lcd", "Handheld LCD")] : [("netti", "Sharp Pixels"), ("hd", "Pixel Art HD"), ("morbido", "Smooth"), ("tv", "TV (scanlines)"), ("lcd", "Handheld LCD")]
+        for (k, t) in filtri {
             voce(LF(t), filtro == k) { d.set(k, forKey: "FMLAB.grafica.filtro") }
         }
         if !e.tocco {
@@ -1318,7 +1361,8 @@ final class FMLABGiocoController: UIViewController {
         let m = e.misuraImmagine
         guard (f == "tv" || f == "lcd"), m.width > 0, m.height > 0, e.vista.bounds.height > 0 else { filtroVista.backgroundColor = .clear; return }
         let divisa = e.vista.layer.contentsRect.height < 0.99
-        let px = e.vista.bounds.height / (divisa ? m.height / 2 : m.height), py = px
+        let righe = Self.righeVere(m.height)
+        let px = e.vista.bounds.height / (divisa ? righe / 2 : righe), py = px
         let chiave = CGSize(width: px * (f == "lcd" ? 1 : 0), height: py)
         if chiave == filtroPer { return }
         filtroPer = chiave
@@ -1358,6 +1402,7 @@ final class FMLABGiocoController: UIViewController {
             let attivo = tenuto ?? turbo
             m.addAction(UIAlertAction(title: attivo == nil ? LF("Hold or Turbo…") : String(format: LF("Release %@"), nomeTasto(attivo!)), style: .default) { [weak self] _ in self?.scegliTenuto() })
             m.addAction(UIAlertAction(title: LF("Picture…"), style: .default) { [weak self] _ in self?.scegliImmagine() })
+            if gioco.core.nome == "ppsspp" { m.addAction(UIAlertAction(title: LF("Texture Packs…"), style: .default) { [weak self] _ in self?.spiegaMod() }) }
             m.addAction(UIAlertAction(title: LF("Move Buttons…"), style: .default) { [weak self] _ in self?.pad.modifica = true })
             let fpsSi = UserDefaults.standard.bool(forKey: "FMLAB.mostraFPS")
             m.addAction(UIAlertAction(title: fpsSi ? LF("Hide Speed") : LF("Show Speed (FPS)"), style: .default) { [weak self] _ in

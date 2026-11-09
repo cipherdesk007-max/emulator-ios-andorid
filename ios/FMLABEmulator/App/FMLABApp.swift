@@ -10,6 +10,7 @@ final class FMLABAppDelegate: UIResponder, UIApplicationDelegate {
         UserDefaults.standard.set(it ? "it" : "en", forKey: "FMLAB.lingua")   // titoli DS e note dei dati nella lingua dell'app
         UserDefaults.standard.set(false, forKey: "FMLAB.giochi.inCorso")
         FMLABEmulatore.preparaCartelle()
+        FMLABMod.prepara()
         FMLABDati.carica()
         return true
     }
@@ -70,6 +71,18 @@ struct FMLABImpostazioni: View {
     @State private var lingua = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String])?.first.map { $0.hasPrefix("it") ? "it" : $0.hasPrefix("en") ? "en" : "" } ?? ""
     @State private var indirizzo = FMLABProtocollo.indirizzoWiFi()?.ip
     @State private var sorgenteCopiata = false
+    private func riga(_ t: String, _ icona: String, _ valore: String?) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icona).font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
+                .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(red: 0.85, green: 0.16, blue: 0.16)))
+            Text(LF(t))
+            Spacer()
+            if let v = valore { Text(v).foregroundColor(.secondary) }
+        }
+    }
+    private func pagina(_ t: String, _ icona: String, _ parte: FMLABSezioniGioco.Parte, _ valore: String?) -> some View {
+        NavigationLink { List { FMLABSezioniGioco(parte: parte) }.listStyle(.insetGrouped).navigationTitle(LF(t)) } label: { riga(t, icona, valore) }
+    }
     var body: some View {
         List {
             Section {
@@ -88,7 +101,15 @@ struct FMLABImpostazioni: View {
                 }
             } footer: { Text("The app checks for new versions by itself. To see FMLAB updates in LiveContainer too: copy the source link, close this app, then LiveContainer › Sources › + and paste. From there one tap updates the app.") }
             FMLABAvvisoVersione()
-            FMLABSezioniGioco()
+            Section {
+                pagina("Graphics", "sparkles.tv", .grafica, LF(FMLABScelte.qualita.first { $0.id == FMLABGiocoController.qualita() }?.titolo ?? ""))
+                NavigationLink { FMLABComandiView() } label: { riga("Controls Look", "gamecontroller.fill", LF(FMLABTemaComandi.attuale.nome)) }
+                pagina("Controls, Sound and Saves", "slider.horizontal.3", .comandi, nil)
+                pagina("TV", "tv.fill", .tv, nil)
+                pagina("Save Backups", "externaldrive.fill", .copie, nil)
+                pagina("Consoles and BIOS", "square.grid.2x2.fill", .console, nil)
+                pagina("Advanced", "wrench.and.screwdriver.fill", .avanzate, nil)
+            } header: { Text("Games") } footer: { Text("Every page explains what each option does.") }
             Section {
                 Toggle("Players 2–4 from Wi-Fi", isOn: $reteAccesa)
                     .onChange(of: reteAccesa) { acceso in if acceso { rete.avvia() } else { rete.ferma() } }

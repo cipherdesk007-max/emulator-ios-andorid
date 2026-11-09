@@ -1,6 +1,20 @@
 # FMLAB Emulator: novità
 
-## 0.4.0
+## 0.5.0
+- **Gli effetti arrivano anche sulla TV**: righe del televisore a tubo e griglia LCD c'erano solo sul telefono.
+  Ora si vedono anche sulla TV e cambiano subito dal menu del gioco › Immagine. Seguono le righe vere della
+  console anche quando è disegnata 2× o 3×.
+- **Immagine giusta per ogni console**: per i giochi 3D (PSP, PS1, DS) il menu non propone più "pixel netti" e
+  "pixel art", che sul 3D non cambiano niente; restano Nessun effetto, TV, LCD, forma e qualità.
+- **PSP più fluida**: *60 Hz regolari* (acceso di base). I giochi a 30 fotogrammi al secondo mostrano ogni
+  fotogramma due volte a ritmo regolare, e il movimento non va più a scatti.
+- **Pacchetti grafici (mod) PSP**: le texture HD fatte dalla comunità (textures.ini più le immagini) si mettono
+  in File › FMLAB Emulator › Giochi › Mod › PSP › codice del gioco. Il menu del gioco › *Pacchetti grafici* dice
+  il codice (letto dal disco), dove metterlo e se il pacchetto è stato trovato. FMLAB non scarica né include
+  pacchetti.
+- **Impostazioni più semplici**: in Impostazioni › Giochi ci sono pagine separate, ognuna con la sua icona:
+  Grafica, Aspetto dei comandi, Comandi suono e salvataggi, TV, Copie dei salvataggi, Console e BIOS, Avanzate.
+
 - **Niente più pixel a blocchi sulla TV**. Il gioco disegnato in alta risoluzione (PSP 1440×816 con la TV) si
   ingrandiva fino a 1920×1080 con il filtro "pixel netti", che trasforma ogni pixel in un quadratone. Ora
   "Pixel netti" vale solo per i giochi 2D alla risoluzione vera. Si ingrandisce liscio:
