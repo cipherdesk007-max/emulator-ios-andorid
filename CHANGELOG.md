@@ -1,6 +1,16 @@
 # FMLAB Emulator: novità
 
-## 0.5.1
+## 0.5.2
+- **Giochi compressi estratti una volta sola**. Prima l'app teneva solo l'ultimo gioco estratto, nella cache, e
+  cancellava il precedente: cambiando gioco si estraeva tutto di nuovo. Anche iOS e l'aggiornamento dei dati
+  svuotavano la cache. Ora ogni archivio si estrae una sola volta in Giochi › Estratti e da lì si apre subito;
+  si estrae di nuovo solo se l'archivio cambia.
+- Impostazioni › Avanzate › Giochi compressi:
+  - *Elimina l'archivio dopo l'estrazione*, solo per gli archivi in Giochi, mai nelle cartelle collegate;
+  - lo spazio occupato dai giochi estratti;
+  - *Cancella le copie estratte*.
+  Un gioco il cui archivio non c'è più resta in lista.
+
 - **Controller fisici** (Backbone, Kishi, Razer, PlayStation, Xbox…):
   - Senza TV, appena colleghi un controller i tasti sullo schermo spariscono e il gioco prende tutto lo schermo,
     tranne il DS, che ha bisogno del tocco. Scollegandolo i tasti tornano.

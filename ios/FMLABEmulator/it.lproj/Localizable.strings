@@ -2144,3 +2144,9 @@
 "%@ connected: player %d" = "%@ collegato: giocatore %d";
 "Controller disconnected: the on-screen buttons are back" = "Controller scollegato: tornano i tasti sullo schermo";
 "A controller was disconnected" = "Un controller è stato scollegato";
+"A zipped game is extracted only the first time, into Giochi › Estratti, and stays there: from then on it opens straight away. Deleting the extracted copies frees space; they are made again when you open the game (games whose archive is gone are kept)." = "Un gioco compresso si estrae solo la prima volta, in Giochi › Estratti, e resta lì: da allora si apre subito. Cancellare le copie estratte libera spazio; si rifanno quando riapri il gioco (i giochi il cui archivio non c'è più restano).";
+"Delete Extracted Copies" = "Cancella le copie estratte";
+"Delete the Archive After Extracting" = "Elimina l'archivio dopo l'estrazione";
+"Extracted Games" = "Giochi estratti";
+"Only for archives in Files › FMLAB Emulator › Giochi (never in your linked folders): once extracted the .zip/.7z/.rar is no longer needed and the space is not used twice." = "Solo per gli archivi in File › FMLAB Emulator › Giochi (mai nelle tue cartelle collegate): una volta estratto lo .zip/.7z/.rar non serve più e lo spazio non si occupa due volte.";
+"Zipped Games" = "Giochi compressi";

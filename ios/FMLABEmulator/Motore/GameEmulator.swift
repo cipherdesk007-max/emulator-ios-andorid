@@ -67,7 +67,7 @@ enum FMLABArchivioGiochi {
     static func cerca(in base: URL, cartella: URL?, nomeCartella: String?) -> [FMLABGioco] {
         var trovati: [FMLABGioco] = []
         let interna = cartella == nil
-        let salta: Set<String> = ["BIOS", "Salvataggi", "Copertine", "Shared", ".linuxrunner"]
+        let salta: Set<String> = ["BIOS", "Salvataggi", "Copertine", "Shared", ".linuxrunner", "Estratti", "Mod", "Foto"]
         guard let e = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey], options: [.skipsPackageDescendants]) else { return [] }
         for case let u as URL in e {
             if e.level > 4 { e.skipDescendants(); continue }
@@ -90,6 +90,16 @@ enum FMLABArchivioGiochi {
             trovati.append(FMLABGioco(url: vero, core: c, cartella: cartella, nomeCartella: nomeCartella, inDownload: scaricare,
                                       icona: scaricare ? nil : FMLABIcona.per(vero, core: c.nome),
                                       titolo: scaricare ? nil : archivio ? FMLABEmulatore.nomeDentro(archivio: vero.path) : FMLABIcona.titolo(vero, core: c.nome)))
+        }
+        // giochi estratti dagli archivi: si mostrano da soli solo se l'archivio non c'è più (se no si apre l'archivio,
+        // che usa subito la cartella già estratta)
+        if interna {
+            let estratti = base.appendingPathComponent("Estratti", isDirectory: true)
+            for d in (try? FileManager.default.contentsOfDirectory(at: estratti, includingPropertiesForKeys: nil)) ?? [] where !d.lastPathComponent.hasPrefix(".") {
+                let origine = (try? String(contentsOf: d.appendingPathComponent(".origine"), encoding: .utf8)) ?? ""
+                if !origine.isEmpty && FileManager.default.fileExists(atPath: origine) { continue }
+                trovati += cerca(in: d, cartella: nil, nomeCartella: "Giochi › Estratti").filter { !["zip", "7z", "rar"].contains($0.url.pathExtension.lowercased()) }
+            }
         }
         return trovati
     }

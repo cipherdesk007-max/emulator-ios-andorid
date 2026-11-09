@@ -515,34 +515,44 @@ static BOOL fmlabArchivio(struct archive *a) {
     return disco ?: trovato;
 }
 + (NSString *)preparaArchivio:(NSString *)archivio error:(NSError **)error {
-    NSDictionary *at = [NSFileManager.defaultManager attributesOfItemAtPath:archivio error:nil];
-    // cartella nella cache: nome + dimensione + data (se il file cambia si estrae di nuovo)
+    NSFileManager *fm = NSFileManager.defaultManager;
+    NSDictionary *at = [fm attributesOfItemAtPath:archivio error:nil];
+    // una volta per tutte: Giochi/Estratti/<nome dell'archivio>, che resta (non è cache: iOS non la svuota).
+    // Se l'archivio cambia (misura o data diverse) si estrae di nuovo.
     NSString *chiave = [NSString stringWithFormat:@"%@|%@|%@", archivio.lastPathComponent, at[NSFileSize], at[NSFileModificationDate]];
-    unsigned char h[CC_SHA256_DIGEST_LENGTH]; NSData *d = [chiave dataUsingEncoding:NSUTF8StringEncoding]; CC_SHA256(d.bytes, (CC_LONG)d.length, h);
-    NSMutableString *sigla = [NSMutableString string]; for (int i = 0; i < 8; i++) [sigla appendFormat:@"%02x", h[i]];
-    NSURL *cache = [[NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject URLByAppendingPathComponent:@"FMLAB-Giochi" isDirectory:YES];
-    NSURL *dest = [cache URLByAppendingPathComponent:sigla isDirectory:YES];
+    NSString *nome = [[archivio.lastPathComponent stringByDeletingPathExtension] stringByReplacingOccurrencesOfString:@"/" withString:@"-"];
+    if (nome.length == 0 || [nome hasPrefix:@"."]) nome = [@"Gioco" stringByAppendingString:nome];
+    NSURL *estratti = [self.cartellaGiochi URLByAppendingPathComponent:@"Estratti" isDirectory:YES];
+    NSURL *dest = [estratti URLByAppendingPathComponent:nome isDirectory:YES];
     NSURL *fatto = [dest URLByAppendingPathComponent:@".pronto"];
-    if (![NSFileManager.defaultManager fileExistsAtPath:fatto.path]) {
-        [NSFileManager.defaultManager removeItemAtURL:cache error:nil];   // si tiene solo l'ultimo gioco estratto: niente spazio sprecato
-        [NSFileManager.defaultManager createDirectoryAtURL:dest withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *gia = [NSString stringWithContentsOfURL:fatto encoding:NSUTF8StringEncoding error:nil];
+    if (![gia isEqualToString:chiave]) {
+        NSURL *tmp = [estratti URLByAppendingPathComponent:[@".in-corso-" stringByAppendingString:nome] isDirectory:YES];
+        [fm removeItemAtURL:tmp error:nil];
+        [fm createDirectoryAtURL:tmp withIntermediateDirectories:YES attributes:nil error:nil];
         struct archive *a = archive_read_new(); fmlabArchivio(a);
         if (archive_read_open_filename(a, archivio.fileSystemRepresentation, 1 << 16) != ARCHIVE_OK) {
-            archive_read_free(a); if (error) *error = fmlabErrore(@"The archive could not be opened."); return nil;
+            archive_read_free(a); [fm removeItemAtURL:tmp error:nil]; if (error) *error = fmlabErrore(@"The archive could not be opened."); return nil;
         }
         struct archive_entry *e; int r = ARCHIVE_OK; char buf[1 << 16];
         while ((r = archive_read_next_header(a, &e)) == ARCHIVE_OK) {
             const char *n = archive_entry_pathname(e);
             if (!n || archive_entry_filetype(e) != AE_IFREG) continue;
-            NSString *nome = @(n).lastPathComponent;   // solo il nome: niente cartelle, niente "../"
-            if (nome.length == 0 || [nome hasPrefix:@"."]) continue;
-            FILE *f = fopen([dest URLByAppendingPathComponent:nome].fileSystemRepresentation, "wb"); if (!f) { r = ARCHIVE_FATAL; break; }
+            NSString *file = @(n).lastPathComponent;   // solo il nome: niente cartelle, niente "../"
+            if (file.length == 0 || [file hasPrefix:@"."]) continue;
+            FILE *f = fopen([tmp URLByAppendingPathComponent:file].fileSystemRepresentation, "wb"); if (!f) { r = ARCHIVE_FATAL; break; }
             la_ssize_t k; while ((k = archive_read_data(a, buf, sizeof buf)) > 0) fwrite(buf, 1, (size_t)k, f);
             fclose(f); if (k < 0) { r = ARCHIVE_FATAL; break; }
         }
         archive_read_free(a);
-        if (r != ARCHIVE_EOF) { [NSFileManager.defaultManager removeItemAtURL:dest error:nil]; if (error) *error = fmlabErrore(@"The archive could not be extracted (damaged or protected by a password)."); return nil; }
-        [@"" writeToURL:fatto atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        if (r != ARCHIVE_EOF) { [fm removeItemAtURL:tmp error:nil]; if (error) *error = fmlabErrore(@"The archive could not be extracted (damaged or protected by a password)."); return nil; }
+        [archivio writeToURL:[tmp URLByAppendingPathComponent:@".origine"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        [chiave writeToURL:[tmp URLByAppendingPathComponent:@".pronto"] atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        [fm removeItemAtURL:dest error:nil];
+        if (![fm moveItemAtURL:tmp toURL:dest error:nil]) { if (error) *error = fmlabErrore(@"The archive could not be extracted."); return nil; }
+        // l'archivio non serve più (solo se è in Giochi, mai nelle cartelle collegate): Impostazioni › Avanzate
+        if ([NSUserDefaults.standardUserDefaults boolForKey:@"FMLAB.archivi.elimina"] && [archivio hasPrefix:self.cartellaGiochi.path])
+            [fm removeItemAtPath:archivio error:nil];
     }
     // il file da aprire: prima .cue/.m3u (dischi), poi il primo che un emulatore riconosce
     NSArray *files = [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dest.path error:nil] sortedArrayUsingSelector:@selector(compare:)];

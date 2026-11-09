@@ -35,6 +35,8 @@ struct FMLABSezioniGioco: View {
     @AppStorage("FMLAB.grafica.qualita") private var qualita = (UserDefaults.standard.object(forKey: "FMLAB.grafica.migliorata") as? Bool ?? true) ? "migliorata" : "originale"
     @AppStorage("FMLAB.grafica.tvMassima") private var tvMassima = true
     @AppStorage("FMLAB.grafica.duplica") private var duplica = true
+    @AppStorage("FMLAB.archivi.elimina") private var eliminaArchivi = false
+    @State private var spazioEstratti = "…"
     @AppStorage("FMLAB.grafica.textureHD") private var textureHD = false
     @AppStorage("FMLAB.grafica.coloriLCD") private var coloriLCD = true
     @AppStorage("FMLAB.grafica.sciaLCD") private var sciaLCD = false
@@ -142,6 +144,13 @@ struct FMLABSezioniGioco: View {
             }
             if parte == .avanzate {
             Section {
+                Toggle(isOn: $eliminaArchivi) { VStack(alignment: .leading, spacing: 3) { Text("Delete the Archive After Extracting"); Text("Only for archives in Files › FMLAB Emulator › Giochi (never in your linked folders): once extracted the .zip/.7z/.rar is no longer needed and the space is not used twice.").font(.caption).foregroundColor(.secondary) } }
+                HStack { Label("Extracted Games", systemImage: "archivebox"); Spacer(); Text(spazioEstratti).foregroundColor(.secondary) }
+                Button(role: .destructive) { svuotaEstratti() } label: { Label("Delete Extracted Copies", systemImage: "trash") }
+            } header: { Text("Zipped Games") } footer: {
+                Text("A zipped game is extracted only the first time, into Giochi › Estratti, and stays there: from then on it opens straight away. Deleting the extracted copies frees space; they are made again when you open the game (games whose archive is gone are kept).")
+            }
+            Section {
                 HStack { Text("Version"); Spacer(); Text(versioneDati).font(.callout.monospaced()).foregroundColor(.secondary) }
                 HStack {
                     Text("Last check"); Spacer()
@@ -162,12 +171,32 @@ struct FMLABSezioniGioco: View {
             }
             }
         }
-        .onAppear { controllaBIOS(); versioneDati = FMLABDati.versione; schermoEsterno = FMLABGiocoController.nomeSchermoEsterno() }
+        .onAppear { misuraEstratti(); controllaBIOS(); versioneDati = FMLABDati.versione; schermoEsterno = FMLABGiocoController.nomeSchermoEsterno() }
         .onReceive(NotificationCenter.default.publisher(for: FMLABTV.cambiata)) { _ in schermoEsterno = FMLABGiocoController.nomeSchermoEsterno() }
         .onChange(of: copertine) { _ in ricarica() }
         .alert("FMLAB Emulator", isPresented: Binding(get: { errore != nil }, set: { if !$0 { errore = nil } })) { Button("OK") { errore = nil } } message: { Text(errore ?? "") }
     }
 
+    private var cartellaEstratti: URL { FMLABEmulatore.cartellaGiochi().appendingPathComponent("Estratti", isDirectory: true) }
+    private func misuraEstratti() {
+        let c = cartellaEstratti
+        DispatchQueue.global(qos: .utility).async {
+            var t: Int64 = 0
+            if let e = FileManager.default.enumerator(at: c, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]) {
+                for case let f as URL in e { t += Int64((try? f.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0) }
+            }
+            DispatchQueue.main.async { spazioEstratti = ByteCountFormatter.string(fromByteCount: t, countStyle: .file) }
+        }
+    }
+    /// Toglie le copie estratte di cui c'è ancora l'archivio (le altre sono l'unico gioco rimasto e restano).
+    private func svuotaEstratti() {
+        let fm = FileManager.default
+        for d in (try? fm.contentsOfDirectory(at: cartellaEstratti, includingPropertiesForKeys: nil)) ?? [] {
+            let origine = (try? String(contentsOf: d.appendingPathComponent(".origine"), encoding: .utf8)) ?? ""
+            if d.lastPathComponent.hasPrefix(".") || (!origine.isEmpty && fm.fileExists(atPath: origine)) { try? fm.removeItem(at: d) }
+        }
+        misuraEstratti(); ricarica()
+    }
     private func controllaBIOS() {
         let elenco = FMLABDati.bios, cartella = FMLABEmulatore.cartellaBIOS()
         DispatchQueue.global(qos: .utility).async {
