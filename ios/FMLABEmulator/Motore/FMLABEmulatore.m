@@ -271,13 +271,15 @@ static size_t fmlabSuoni(const int16_t *data, size_t frames) {
 static void fmlabSuono(int16_t l, int16_t r) { int16_t c[2] = { l, r }; fmlabSuoni(c, 1); }
 static void fmlabPoll(void) {}
 static bool G_croceAnalogica;   // PSP: la croce muove anche la levetta analogica (molti giochi camminano solo con quella)
+// Controller fisici: il primo è il giocatore 1, il secondo il giocatore 2… (tasti e levetta sinistra per porta)
+static _Atomic uint32_t G_ctrl[4], G_ctrlLevetta[4];
 // Giocatori in rete (Controller 2…4 dal Wi-Fi): tasti e levetta per porta libretro (0 = giocatore 1)
 #define FMLAB_PORTE 4
 static _Atomic uint32_t G_rete[FMLAB_PORTE];
 static _Atomic uint32_t G_reteLevetta[FMLAB_PORTE];   // x nei 16 bit alti, y nei bassi
 static uint32_t fmlabTastiPorta(unsigned port) {
     if (port >= FMLAB_PORTE) return 0;
-    uint32_t t = atomic_load(&G_rete[port]);
+    uint32_t t = atomic_load(&G_rete[port]) | atomic_load(&G_ctrl[port]);
     if (port == 0) t |= atomic_load(&G_tasti) | atomic_load(&G_tastiController);
     return t;
 }
@@ -285,6 +287,7 @@ static int16_t fmlabStato(unsigned port, unsigned device, unsigned index, unsign
     if (port >= FMLAB_PORTE) return 0;
     if (device == RETRO_DEVICE_ANALOG && index == RETRO_DEVICE_INDEX_ANALOG_LEFT) {
         uint32_t lv = atomic_load(&G_reteLevetta[port]);
+        if (!lv) lv = atomic_load(&G_ctrlLevetta[port]);
         int16_t lx = (int16_t)(lv >> 16), ly = (int16_t)(lv & 0xFFFF);
         if (lx || ly) return id == RETRO_DEVICE_ID_ANALOG_X ? lx : id == RETRO_DEVICE_ID_ANALOG_Y ? ly : 0;
         if (G_croceAnalogica) {
@@ -972,11 +975,13 @@ static uint64_t fmlabOra(void) { return (uint64_t)NSDate.date.timeIntervalSince1
 static uint32_t fmlabPad(GCExtendedGamepad *g) {
     if (!g) return 0;
     uint32_t t = 0;
+    const float soglia = G_croceAnalogica ? 2.0f : 0.5f;   // PSP: la levetta resta levetta (va nell'analogico)
     #define T(cond, id) if (cond) t |= 1u << id;
-    T(g.dpad.up.pressed || g.leftThumbstick.yAxis.value > 0.5, RETRO_DEVICE_ID_JOYPAD_UP)
-    T(g.dpad.down.pressed || g.leftThumbstick.yAxis.value < -0.5, RETRO_DEVICE_ID_JOYPAD_DOWN)
-    T(g.dpad.left.pressed || g.leftThumbstick.xAxis.value < -0.5, RETRO_DEVICE_ID_JOYPAD_LEFT)
-    T(g.dpad.right.pressed || g.leftThumbstick.xAxis.value > 0.5, RETRO_DEVICE_ID_JOYPAD_RIGHT)
+    T(g.dpad.up.pressed || g.leftThumbstick.yAxis.value > soglia, RETRO_DEVICE_ID_JOYPAD_UP)
+    T(g.dpad.down.pressed || g.leftThumbstick.yAxis.value < -soglia, RETRO_DEVICE_ID_JOYPAD_DOWN)
+    T(g.dpad.left.pressed || g.leftThumbstick.xAxis.value < -soglia, RETRO_DEVICE_ID_JOYPAD_LEFT)
+    T(g.dpad.right.pressed || g.leftThumbstick.xAxis.value > soglia, RETRO_DEVICE_ID_JOYPAD_RIGHT)
+    T(g.leftThumbstickButton.pressed, RETRO_DEVICE_ID_JOYPAD_L3) T(g.rightThumbstickButton.pressed, RETRO_DEVICE_ID_JOYPAD_R3)
     // disposizione Nintendo: A a destra, B in basso
     T(g.buttonB.pressed, RETRO_DEVICE_ID_JOYPAD_A) T(g.buttonA.pressed, RETRO_DEVICE_ID_JOYPAD_B)
     T(g.buttonY.pressed, RETRO_DEVICE_ID_JOYPAD_X) T(g.buttonX.pressed, RETRO_DEVICE_ID_JOYPAD_Y)
@@ -1016,9 +1021,23 @@ static uint32_t fmlabTastiera(void) {
         os_unfair_lock_lock(&_lockLavori); NSArray *da = [_lavori copy]; [_lavori removeAllObjects]; os_unfair_lock_unlock(&_lockLavori);
         for (dispatch_block_t b in da) b();
         if (self.inPausa) { usleep(20000); prossimo = mach_absolute_time(); continue; }
-        uint32_t pad = 0;
-        for (GCController *c in GCController.controllers) pad |= fmlabPad(c.extendedGamepad);
-        pad |= fmlabTastiera();
+        // controller fisici: uno per giocatore (il primo collegato è il giocatore 1), tastiera al giocatore 1
+        uint32_t pad = fmlabTastiera(); int porta = 0; BOOL menu = NO;
+        for (GCController *c in GCController.controllers) {
+            GCExtendedGamepad *g = c.extendedGamepad; if (!g || porta >= 4) continue;
+            uint32_t t = fmlabPad(g);
+            float lx = g.leftThumbstick.xAxis.value, ly = g.leftThumbstick.yAxis.value;
+            if (fabsf(lx) < 0.12f) lx = 0; if (fabsf(ly) < 0.12f) ly = 0;   // zona morta: niente deriva
+            uint32_t lv = ((uint32_t)(uint16_t)(int16_t)(lx * 32767) << 16) | (uint16_t)(int16_t)(-ly * 32767);
+            if (porta == 0) { pad |= t; atomic_store(&G_ctrlLevetta[0], lv); } else { atomic_store(&G_ctrl[porta], t); atomic_store(&G_ctrlLevetta[porta], lv); }
+            if (@available(iOS 14.0, *)) { if (g.buttonHome.pressed) menu = YES; }
+            if (g.leftThumbstickButton.pressed && g.rightThumbstickButton.pressed) menu = YES;   // L3+R3 = menu
+            porta++;
+        }
+        for (int i = MAX(porta, 1); i < 4; i++) { atomic_store(&G_ctrl[i], 0); atomic_store(&G_ctrlLevetta[i], 0); }
+        if (porta == 0) atomic_store(&G_ctrlLevetta[0], 0);
+        static BOOL menuPrima; if (menu && !menuPrima) dispatch_async(dispatch_get_main_queue(), ^{ [NSNotificationCenter.defaultCenter postNotificationName:@"FMLABMenuDalController" object:nil]; });
+        menuPrima = menu;
         atomic_store(&G_tastiController, pad);
         uint32_t inCoda = atomic_load(&G_scrivi) - atomic_load(&G_leggi);
         double hz = G_av.timing.sample_rate > 1000 ? G_av.timing.sample_rate : 44100;

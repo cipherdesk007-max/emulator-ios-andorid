@@ -1,6 +1,17 @@
 # FMLAB Emulator: novità
 
-## 0.5.0
+## 0.5.1
+- **Controller fisici** (Backbone, Kishi, Razer, PlayStation, Xbox…):
+  - Senza TV, appena colleghi un controller i tasti sullo schermo spariscono e il gioco prende tutto lo schermo,
+    tranne il DS, che ha bisogno del tocco. Scollegandolo i tasti tornano.
+  - Con la TV il gioco resta sulla TV e il controller comanda.
+  - Ogni controller è un giocatore: il primo collegato è il giocatore 1, il secondo il giocatore 2, fino a 4. La
+    luce sul controller mostra il numero.
+  - La levetta sinistra è una levetta vera (analogica) per PSP e PS1, con zona morta per non derivare. Sui
+    giochi 2D muove anche la croce.
+  - Il tasto Home del controller (o L3 + R3 insieme) apre il menu del gioco. L3 e R3 funzionano come tasti.
+  - Avviso quando un controller si collega o si scollega.
+
 - **Gli effetti arrivano anche sulla TV**: righe del televisore a tubo e griglia LCD c'erano solo sul telefono.
   Ora si vedono anche sulla TV e cambiano subito dal menu del gioco › Immagine. Seguono le righe vere della
   console anche quando è disegnata 2× o 3×.

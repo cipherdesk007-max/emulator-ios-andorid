@@ -2141,3 +2141,6 @@
 "Changes right away, on the iPhone and on the TV. Shape applies in landscape and on the TV." = "Cambia subito, sull'iPhone e sulla TV. La forma vale in orizzontale e sulla TV.";
 "Pack found for %@: it is in use. To change it, replace the folder." = "Pacchetto trovato per %@: è in uso. Per cambiarlo, sostituisci la cartella.";
 "Game code: %@. Put the pack (the folder with textures.ini and the images) in Files › FMLAB Emulator › Giochi › Mod › PSP › %@ and open the game again." = "Codice del gioco: %@. Metti il pacchetto (la cartella con textures.ini e le immagini) in File › FMLAB Emulator › Giochi › Mod › PSP › %@ e riapri il gioco.";
+"%@ connected: player %d" = "%@ collegato: giocatore %d";
+"Controller disconnected: the on-screen buttons are back" = "Controller scollegato: tornano i tasti sullo schermo";
+"A controller was disconnected" = "Un controller è stato scollegato";

@@ -5,7 +5,7 @@
 Emulatore per iPhone (IPA) con **la TV come schermo vero** e **Controller 2 dal Wi-Fi**, più **FMLAB Controller**
 per Android (APK), che fa da Controller 2 per FMLAB Emulator.
 
-**Stato: 0.5.0.**
+**Stato: 0.5.1.**
 Nessun gioco o BIOS è incluso o scaricato dall'app: usa solo le tue copie.
 
 ## Installare

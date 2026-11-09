@@ -861,15 +861,33 @@ final class FMLABGiocoController: UIViewController {
             if !attivo { self?.mostra(LF("Buttons saved for this console")) }
         }
         pad.veloce = { [weak self] attivo in self?.emulatore?.veloce = attivo }
-        let controller: @Sendable (Notification) -> Void = { [weak self] _ in
-            DispatchQueue.main.async { self?.pad.soloMenu = !GCController.controllers().compactMap(\.extendedGamepad).isEmpty }
+        let controller: @Sendable (Notification) -> Void = { [weak self] n in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let tutti = GCController.controllers().filter { $0.extendedGamepad != nil }
+                // luce del giocatore sul controller (1, 2, 3, 4), nello stesso ordine con cui l'app li legge
+                let indici: [GCControllerPlayerIndex] = [.index1, .index2, .index3, .index4]
+                for (i, c) in tutti.enumerated() where i < 4 { c.playerIndex = indici[i] }
+                let prima = self.pad.soloMenu
+                self.pad.soloMenu = !tutti.isEmpty
+                if prima != self.pad.soloMenu || n.name == .GCControllerDidConnect {
+                    self.view.setNeedsLayout(); UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
+                }
+                if n.name == .GCControllerDidConnect, let c = n.object as? GCController, let i = tutti.firstIndex(of: c) {
+                    self.mostra(String(format: LF("%@ connected: player %d"), c.vendorName ?? LF("Controller"), i + 1))
+                } else if n.name == .GCControllerDidDisconnect, n.object != nil {
+                    self.mostra(tutti.isEmpty ? LF("Controller disconnected: the on-screen buttons are back") : LF("A controller was disconnected"))
+                }
+            }
         }
         osservatori = [NotificationCenter.default.addObserver(forName: Notification.Name("FMLABMisuraGioco"), object: nil, queue: .main) { [weak self] _ in
                            self?.filtroPer = .zero
                            self?.view.setNeedsLayout(); UIView.animate(withDuration: 0.2) { self?.view.layoutIfNeeded() } },
+                       NotificationCenter.default.addObserver(forName: Notification.Name("FMLABMenuDalController"), object: nil, queue: .main) { [weak self] _ in
+                           guard let self, self.presentedViewController == nil else { return }; self.apriMenu() },
                        NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main, using: controller),
                        NotificationCenter.default.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main, using: controller)]
-        controller(Notification(name: .GCControllerDidConnect))
+        controller(Notification(name: Notification.Name("FMLABControllerIniziali")))
         view.addSubview(pad)
         for nome in [UIScene.didActivateNotification, UIScene.didDisconnectNotification, UIScene.willConnectNotification, FMLABTV.cambiata] {
             osservatori.append(NotificationCenter.default.addObserver(forName: nome, object: nil, queue: .main) { [weak self] _ in
@@ -1068,6 +1086,20 @@ final class FMLABGiocoController: UIViewController {
             else { pad.areaSicura.top = s.minY + 50 }
             view.bringSubviewToFront(barraTV)
             pad.setNeedsLayout(); return
+        }
+        // controller fisico e niente TV: i tasti a schermo spariscono e il gioco prende tutto lo schermo (il DS no:
+        // serve il tocco sullo schermo di sotto)
+        if esterno == nil && pad.soloMenu && !ds, let e = emulatore {
+            e.vista.isHidden = false; avviso.frame = .zero
+            let forma = UserDefaults.standard.string(forKey: "FMLAB.grafica.formato") ?? "originale"
+            var r = max(0.3, e.rapporto)
+            if b.width > b.height && forma == "largo" { r = max(r, 16.0 / 9.0) } else if b.width > b.height && forma == "pieno" { r = s.width / max(1, s.height) }
+            var w = s.width, h = w / r; if h > s.height { h = s.height; w = h * r }
+            e.vista.frame = CGRect(x: s.midX - w / 2, y: s.midY - h / 2, width: w, height: h).integral
+            pad.modo = b.height >= b.width ? .verticale : .orizzontale
+            pad.frame = b; pad.areaSicura = UIEdgeInsets(top: s.minY, left: s.minX, bottom: b.maxY - s.maxY, right: b.maxX - s.maxX)
+            pad.spazioLato = b.width / 3
+            filtroPer = .zero; aggiornaFiltro(); pad.setNeedsLayout(); return
         }
         // DS con la TV: sulla TV i due schermi, sul telefono SOLO lo schermo da toccare (serve per il pennino) e i tasti
         if esterno != nil && ds, let e = emulatore {
