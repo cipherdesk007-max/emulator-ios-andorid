@@ -93,6 +93,9 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
     /** Tocco fuori dai tasti (schermo touch di DS e 3DS): x, y in pixel della vista, giù/su. */
     var toccoLibero: ((Float, Float, Boolean) -> Unit)? = null
     private var ditoLibero = -1
+    /** Gioco sulla TV: il telefono è il controller (fondo scuro, e per DS/3DS un tappetino per toccare lo schermo di sotto). */
+    var suTV = false; set(v) { field = v; costruisci(); invalidate() }
+    val tappetino = RectF()
 
     fun imposta(e: Evento.Collegato) {
         intestazione = context.getString(R.string.giocatore, e.giocatore) + " · " + e.titolo.ifEmpty { context.getString(R.string.attesa_gioco) }
@@ -129,6 +132,8 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
         fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Bottone(bit, nome, RectF(x, ySpalle, x + sw, ySpalle + sh), false))
         if (disposizione >= 1) { spalla(Tasto.L, if (ps) "L1" else "L", m); spalla(Tasto.R, if (ps) "R1" else "R", w - m - sw) }
         if (disposizione >= 3) { spalla(Tasto.L2, "L2", m + sw + m); spalla(Tasto.R2, "R2", w - 2 * m - 2 * sw) }
+        // tappetino per lo schermo da toccare quando il gioco è sulla TV: lo spazio libero tra i tasti
+        if (verticale) tappetino.set(w * 0.08f, 70 * d, w * 0.92f, ySpalle - 16 * d) else tappetino.set(w * 0.28f, 60 * d, w * 0.72f, h - 70 * d)
         val bw = 84 * d; val bh = 38 * d
         if (verticale) {   // in basso al centro, sotto i tasti
             val by = h - m - bh
@@ -145,9 +150,14 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
 
     override fun onDraw(c: Canvas) {
         if (nascosto) { c.drawRoundRect(rettMenu, 12 * d, 12 * d, pieno); scritta.textSize = 22 * d; c.drawText("≡", rettMenu.centerX(), rettMenu.centerY() - (scritta.descent() + scritta.ascent()) / 2, scritta); return }
-        if (!trasparente) {
+        if (!trasparente || suTV) {
             c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), sfondo)
-            c.drawText(intestazione, width / 2f, 30 * d + testa.textSize, testa)
+            if (!trasparente) c.drawText(intestazione, width / 2f, 30 * d + testa.textSize, testa)
+        }
+        if (suTV) {
+            c.drawText(context.getString(R.string.gioco_sulla_tv), width / 2f, 30 * d + testa.textSize, testa)
+            if (toccoLibero != null) { c.drawRoundRect(tappetino, 18 * d, 18 * d, pieno); c.drawRoundRect(tappetino, 18 * d, 18 * d, bordo)
+                c.drawText(context.getString(R.string.tappetino), tappetino.centerX(), tappetino.centerY(), testa) }
         }
         // croce
         val x = centroCroce[0]; val y = centroCroce[1]; val a = raggioCroce; val b = a * 0.36f

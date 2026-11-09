@@ -89,4 +89,11 @@
     <string name="schermi_sopra">One above the other</string>
     <string name="schermi_affiancati">Side by side (biggest in landscape)</string>
     <string name="schermi_grande">Big top screen + small touch screen</string>
+    <string name="tv_collegata">Game on %1$s: the phone is the controller</string>
+    <string name="tv_staccata">TV disconnected: the game is back on the phone</string>
+    <string name="gioco_sulla_tv">Game on the TV</string>
+    <string name="tappetino">Touch here = bottom screen</string>
+    <string name="usa_tv">Use the TV for games</string>
+    <string name="tv_massima">Maximum quality on the TV</string>
+    <string name="tv_spiega">With a USB-C/HDMI cable or screen casting that makes a second screen (Miracast, Samsung Smart View…) the TV shows only the game and the phone becomes the controller (DS/3DS: the middle of the phone is the touch screen). Chromecast can only copy the phone: then play in landscape.</string>
 </resources>

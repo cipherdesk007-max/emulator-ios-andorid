@@ -165,10 +165,12 @@ class HomeActivity : Activity() {
         scelta(R.string.effetto, "effetto", listOf(R.string.effetto_nessuno, R.string.effetto_righe, R.string.effetto_lcd), R.string.effetto_spiega)
         scelta(R.string.forma, "forma", listOf(R.string.forma_originale, R.string.forma_16_9, R.string.forma_piena), R.string.forma_spiega)
         val box = scatola()
-        for ((chiave, titolo) in listOf("muto" to R.string.muto_veloce, "fps" to R.string.mostra_fps)) {
-            val si = prefs.getBoolean(chiave, chiave == "muto")
+        val diBase = setOf("muto", "tv", "tvMassima")
+        for ((chiave, titolo) in listOf("tv" to R.string.usa_tv, "tvMassima" to R.string.tv_massima, "muto" to R.string.muto_veloce, "fps" to R.string.mostra_fps)) {
+            val si = prefs.getBoolean(chiave, chiave in diBase)
             box.addView(bottone((if (si) "✓  " else "○  ") + getString(titolo)) { prefs.edit().putBoolean(chiave, !si).apply(); mostra() })
         }
+        box.addView(testo(getString(R.string.tv_spiega), 12f, Color.GRAY).apply { setPadding(0, dp(8), 0, 0) })
         contenuto.addView(box)
         contenuto.addView(testo(getString(R.string.cartelle_spiega, Archivio.radice.path), 12f, Color.GRAY).apply { setPadding(0, dp(12), 0, dp(24)) })
     }

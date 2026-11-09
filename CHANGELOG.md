@@ -1,6 +1,16 @@
 # FMLAB Emulator: novità
 
-## 0.6.4
+## 0.6.5
+- **Android sulla TV come su iPhone**: con un cavo USB-C/HDMI o una trasmissione che crea un secondo schermo
+  (Miracast, Samsung Smart View…), la TV mostra solo il gioco e il telefono diventa il controller.
+  - Sul telefono: fondo scuro e la scritta "Gioco sulla TV".
+  - Si collega e si scollega anche durante il gioco: scollegando, il gioco torna sul telefono.
+  - DS e 3DS: sulla TV gli schermi grandi; il centro del telefono diventa il tappetino per toccare lo schermo di
+    sotto.
+  - Con la TV la qualità sale da sola a Massima (Impostazioni › Qualità massima sulla TV).
+  - Si può spegnere: Impostazioni › Usa la TV per i giochi.
+  - Chromecast può solo copiare lo schermo del telefono: lo spiega l'app.
+
 - **Android, DS e 3DS a schermi grandi**: l'app separa da sé i due schermi (l'emulatore li dà uno sopra l'altro) e
   li dispone come vuoi; menu del gioco › *Schermi*:
   - **Automatica**: in verticale uno sopra l'altro, in orizzontale affiancati. In orizzontale ognuno è circa il

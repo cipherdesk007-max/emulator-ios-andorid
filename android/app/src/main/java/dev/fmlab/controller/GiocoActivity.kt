@@ -4,6 +4,9 @@ package dev.fmlab.controller
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Presentation
+import android.hardware.display.DisplayManager
+import android.view.Display
 import android.content.Context
 import android.graphics.Color
 import android.hardware.input.InputManager
@@ -34,6 +37,44 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
     private val tastiController = IntArray(4)
     private val porte = mutableListOf<Int>()       // deviceId dei controller, nell'ordine in cui si sono fatti vivi
     private var veloce = false
+    private var superficieTelefono: SurfaceHolder? = null
+    private var tv: Presentation? = null
+    private val schermi by lazy { getSystemService(Context.DISPLAY_SERVICE) as DisplayManager }
+    private val ascoltaSchermi = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(id: Int) { runOnUiThread { collegaTV() } }
+        override fun onDisplayRemoved(id: Int) { runOnUiThread { if (tv?.display?.displayId == id) staccaTV() } }
+        override fun onDisplayChanged(id: Int) {}
+    }
+
+    /** TV come secondo schermo vero (cavo USB-C/HDMI, Miracast/Smart View): il gioco solo sulla TV, il telefono controller. */
+    private fun collegaTV() {
+        if (tv != null || !prefs.getBoolean("tv", true)) return
+        val d = schermi.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).firstOrNull() ?: return
+        val p = object : Presentation(this, d) {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                val sv = SurfaceView(context)
+                sv.holder.addCallback(object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(h: SurfaceHolder) { Motore.superficie(h.surface) }
+                    override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) { Motore.superficie(h.surface) }
+                    override fun surfaceDestroyed(h: SurfaceHolder) { if (tv != null) Motore.superficie(null) }
+                })
+                setContentView(sv)
+            }
+        }
+        p.setOnDismissListener { if (tv === p) staccaTV() }
+        try { p.show() } catch (_: Exception) { return }
+        tv = p
+        pad.suTV = true
+        Toast.makeText(this, getString(R.string.tv_collegata, d.name), Toast.LENGTH_SHORT).show()
+    }
+    private fun staccaTV() {
+        val p = tv ?: return
+        tv = null; pad.suTV = false
+        try { p.dismiss() } catch (_: Exception) {}
+        Motore.superficie(superficieTelefono?.surface)   // il gioco torna sul telefono
+        Toast.makeText(this, R.string.tv_staccata, Toast.LENGTH_SHORT).show()
+    }
     private var doppio = 0
     private lateinit var nome: String
     private lateinit var gioco: File
@@ -47,9 +88,10 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         val radice = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         val superficie = SurfaceView(this)
         superficie.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(h: SurfaceHolder) { Motore.superficie(h.surface) }
-            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) { Motore.superficie(h.surface) }
-            override fun surfaceDestroyed(h: SurfaceHolder) { Motore.superficie(null) }
+            // con la TV collegata il gioco va solo lì: la superficie del telefono non si usa
+            override fun surfaceCreated(h: SurfaceHolder) { superficieTelefono = h; if (tv == null) Motore.superficie(h.surface) }
+            override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) { superficieTelefono = h; if (tv == null) Motore.superficie(h.surface) }
+            override fun surfaceDestroyed(h: SurfaceHolder) { superficieTelefono = null; if (tv == null) Motore.superficie(null) }
         })
         radice.addView(superficie, FrameLayout.LayoutParams(-1, -1))
         pad = PadView(this, trasparente = true, invia = { bit, giu -> tastiSchermo = if (giu) tastiSchermo or (1 shl bit) else tastiSchermo and (1 shl bit).inv(); invia(0) }) { menu() }
@@ -60,11 +102,18 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         if (doppio > 0) pad.toccoLibero = { x, y, giu ->
             // lo schermo da toccare è dove lo ha messo il motore (qualunque disposizione); il core vuole le coordinate
             // sull'immagine intera, dove lo schermo di sotto è la metà bassa
+            if (tv != null) {
+                val t = pad.tappetino
+                val px = ((x - t.left) / t.width()).coerceIn(0f, 1f); val py = ((y - t.top) / t.height()).coerceIn(0f, 1f)
+                val a = Motore.areaTocco()
+                Motore.tocco(((a[4] + px * (a[5] - a[4])) * 65534 - 32767).toInt(), ((0.5f + 0.5f * py) * 65534 - 32767).toInt(), giu && t.contains(x, y))
+            } else {
             val a = Motore.areaTocco()
             val dentro = x >= a[0] && x <= a[2] && y >= a[1] && y <= a[3] && a[2] > a[0]
             val px = ((x - a[0]) / (a[2] - a[0])).coerceIn(0f, 1f); val py = ((y - a[1]) / (a[3] - a[1])).coerceIn(0f, 1f)
             val ix = a[4] + px * (a[5] - a[4]); val iy = if (a[6] > 0.5f) 0.5f + 0.5f * py else py
             Motore.tocco((ix * 65534 - 32767).toInt(), (iy * 65534 - 32767).toInt(), giu && dentro)
+            }
         }
         radice.addView(pad, FrameLayout.LayoutParams(-1, -1))
         attesa = ProgressBar(this); radice.addView(attesa, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
@@ -73,12 +122,15 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         setContentView(radice)
         schermoIntero()
         (getSystemService(Context.INPUT_SERVICE) as InputManager).registerInputDeviceListener(this, null)
+        schermi.registerDisplayListener(ascoltaSchermi, null)
+        collegaTV()
         aggiornaController()
         applicaImmagine()
         // il motore apre il gioco su un filo suo (fino a qualche secondo per i dischi grandi)
         Thread {
             val core = Emulatori.libreria(this, nome).path
-            val err = Motore.avvia(core, gioco.path, Archivio.bios.path, Archivio.salvataggi.path, Emulatori.opzioni(nome, prefs.getInt("qualita", 1)))
+            val q = prefs.getInt("qualita", 1).let { if (it == 1 && tv != null && prefs.getBoolean("tvMassima", true)) 2 else it }
+            val err = Motore.avvia(core, gioco.path, Archivio.bios.path, Archivio.salvataggi.path, Emulatori.opzioni(nome, q))
             runOnUiThread {
                 attesa.visibility = View.GONE
                 if (err != null) {
@@ -138,6 +190,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
     override fun onPause() { super.onPause(); if (avviato) Motore.pausa(true) }
     override fun onDestroy() {
         (getSystemService(Context.INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this)
+        schermi.unregisterDisplayListener(ascoltaSchermi); tv?.let { tv = null; try { it.dismiss() } catch (_: Exception) {} }
         Host.cambiati = null; Host.avvisa = null; Host.ferma()
         Motore.ferma(); super.onDestroy()
     }

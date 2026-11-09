@@ -89,4 +89,11 @@
     <string name="schermi_sopra">Uno sopra l\'altro</string>
     <string name="schermi_affiancati">Affiancati (i più grandi in orizzontale)</string>
     <string name="schermi_grande">Schermo di sopra grande + quello da toccare piccolo</string>
+    <string name="tv_collegata">Gioco su %1$s: il telefono è il controller</string>
+    <string name="tv_staccata">TV scollegata: il gioco torna sul telefono</string>
+    <string name="gioco_sulla_tv">Gioco sulla TV</string>
+    <string name="tappetino">Tocca qui = schermo di sotto</string>
+    <string name="usa_tv">Usa la TV per i giochi</string>
+    <string name="tv_massima">Qualità massima sulla TV</string>
+    <string name="tv_spiega">Con un cavo USB-C/HDMI o una trasmissione che crea un secondo schermo (Miracast, Samsung Smart View…) la TV mostra solo il gioco e il telefono diventa il controller (DS/3DS: il centro del telefono è lo schermo da toccare). Chromecast può solo copiare il telefono: allora gioca in orizzontale.</string>
 </resources>
