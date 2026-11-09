@@ -90,9 +90,8 @@ struct FMLABGuidaTV: View {
                 }
             }
             Section {
-                FMLABRigaAirPlay()
                 Text(diagnosi).font(.caption2.monospaced()).foregroundColor(.secondary).textSelection(.enabled)
-            } footer: { Text("Sends only the sound (like music from Spotify): the picture stays on the iPhone.") }
+            } footer: { Text("For help: this line says what iOS is doing with the TV.") }
         }
         .navigationTitle(LF("Play on the TV"))
         .toolbar { ToolbarItem(placement: .confirmationAction) { if let chiudi { Button("Done") { chiudi() } } } }

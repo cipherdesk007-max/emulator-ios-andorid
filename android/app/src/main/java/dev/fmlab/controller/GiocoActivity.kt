@@ -71,7 +71,13 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                 if (err != null) {
                     AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(gioco.nameWithoutExtension)
                         .setMessage(getString(R.string.gioco_non_parte, err)).setPositiveButton("OK") { _, _ -> finish() }.setCancelable(false).show()
-                } else { avviato = true; if (prefs.getBoolean("fps", false)) mostraFps() }
+                } else {
+                    avviato = true; if (prefs.getBoolean("fps", false)) mostraFps()
+                    // giocatori 2…4 dal Wi-Fi (iPhone o Android con Controller 2)
+                    Host.cambiati = { p -> invia(p) }
+                    Host.avvisa = { t -> runOnUiThread { Toast.makeText(this, if (t.startsWith("−")) getString(R.string.giocatore_uscito, t.drop(2)) else getString(R.string.giocatore_entrato, t), Toast.LENGTH_SHORT).show() } }
+                    Host.avvia(this, gioco.nameWithoutExtension, nome, Emulatori.disposizione(nome))
+                }
             }
         }.start()
     }
@@ -95,6 +101,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
     override fun onPause() { super.onPause(); if (avviato) Motore.pausa(true) }
     override fun onDestroy() {
         (getSystemService(Context.INPUT_SERVICE) as InputManager).unregisterInputDeviceListener(this)
+        Host.cambiati = null; Host.avvisa = null; Host.ferma()
         Motore.ferma(); super.onDestroy()
     }
 
@@ -138,7 +145,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
     override fun onInputDeviceChanged(id: Int) { aggiornaController() }
 
     private fun porta(id: Int): Int { if (id !in porte) porte += id; return porte.indexOf(id).coerceAtMost(3) }
-    private fun invia(p: Int) { Motore.tasti(p, tastiController[p] or (if (p == 0) tastiSchermo else 0)) }
+    private fun invia(p: Int) { Motore.tasti(p, tastiController[p] or Host.tasti[p] or (if (p == 0) tastiSchermo else 0)) }
 
     /** Tasti Android → libretro (disposizione Nintendo: A a destra, B in basso). */
     private fun bit(code: Int) = when (code) {

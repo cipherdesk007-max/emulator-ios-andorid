@@ -63,6 +63,13 @@ enum FMLABNomi {
 }
 
 enum FMLABArchivioGiochi {
+    /// Il gioco dentro Giochi/Estratti per questo archivio, se è già stato estratto.
+    static func estrattoDi(_ archivio: URL) -> URL? {
+        let d = FMLABEmulatore.cartellaGiochi().appendingPathComponent("Estratti/" + archivio.deletingPathExtension().lastPathComponent, isDirectory: true)
+        let f = ((try? FileManager.default.contentsOfDirectory(atPath: d.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
+        let preferito = f.first { ["cue", "m3u"].contains(($0 as NSString).pathExtension.lowercased()) } ?? f.first { FMLABEmulatore.core(per: $0) != nil && ($0 as NSString).pathExtension.lowercased() != "bin" }
+        return preferito.map { d.appendingPathComponent($0) }
+    }
     /// Cerca i giochi in una cartella (fino a 4 livelli): solo i file che un emulatore apre, niente roba di Linux.
     static func cerca(in base: URL, cartella: URL?, nomeCartella: String?) -> [FMLABGioco] {
         var trovati: [FMLABGioco] = []
@@ -87,9 +94,11 @@ enum FMLABArchivioGiochi {
             guard let c = archivio ? (scaricare ? nil : FMLABEmulatore.core(dentroArchivio: vero.path)) : (scaricare ? FMLABEmulatore.core(per: vero.lastPathComponent) : FMLABEmulatore.core(perFile: vero.path)) else { continue }
             // le tracce .bin di un disco con .cue accanto non sono giochi a sé
             if est == "bin", (try? FileManager.default.contentsOfDirectory(atPath: vero.deletingLastPathComponent().path))?.contains(where: { $0.lowercased().hasSuffix(".cue") }) == true { continue }
+            // archivio già estratto una volta: icona e titolo veri dal gioco estratto (es. ICON0 delle PSP)
+            let estratto = archivio ? estrattoDi(vero) : nil
             trovati.append(FMLABGioco(url: vero, core: c, cartella: cartella, nomeCartella: nomeCartella, inDownload: scaricare,
-                                      icona: scaricare ? nil : FMLABIcona.per(vero, core: c.nome),
-                                      titolo: scaricare ? nil : archivio ? FMLABEmulatore.nomeDentro(archivio: vero.path) : FMLABIcona.titolo(vero, core: c.nome)))
+                                      icona: scaricare ? nil : FMLABIcona.per(vero, core: c.nome) ?? estratto.flatMap { FMLABIcona.per($0, core: c.nome) },
+                                      titolo: scaricare ? nil : archivio ? (estratto.flatMap { FMLABIcona.titolo($0, core: c.nome) } ?? FMLABEmulatore.nomeDentro(archivio: vero.path)) : FMLABIcona.titolo(vero, core: c.nome)))
         }
         // giochi estratti dagli archivi: si mostrano da soli solo se l'archivio non c'è più (se no si apre l'archivio,
         // che usa subito la cartella già estratta)
@@ -183,7 +192,7 @@ enum FMLABIcona {
 /// file (funziona coi nomi standard No-Intro/Redump, es. "Super Mario World (USA)"). Si salvano in Giochi/Copertine;
 /// un gioco senza copertina trovata non si ricerca più.
 enum FMLABCopertine {
-    static let chiaveAttive = "FMLAB.copertine.automatiche", chiaveMancanti = "FMLAB.copertine.mancanti2"
+    static let chiaveAttive = "FMLAB.copertine.automatiche", chiaveMancanti = "FMLAB.copertine.mancanti3"
     static var attive: Bool { UserDefaults.standard.object(forKey: chiaveAttive) as? Bool ?? true }
     static func sistema(_ g: FMLABGioco) -> String? {
         switch g.core.nome {
@@ -203,6 +212,8 @@ enum FMLABCopertine {
         var c: [String] = []
         func pulito(_ t: String) -> String {
             t.replacingOccurrences(of: #"\[[^\]]*\]"#, with: "", options: .regularExpression)
+             .replacingOccurrences(of: #"^\d{1,5}\s*-\s*"#, with: "", options: .regularExpression)          // "2760 - Naruto…" (numero di elenco)
+             .replacingOccurrences(of: #"\s*\((Track|Disc|Disco)\s*\d+\)"#, with: "", options: [.regularExpression, .caseInsensitive])   // tracce e dischi
              .replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
              .trimmingCharacters(in: .whitespaces)
         }
@@ -1025,7 +1036,8 @@ final class FMLABGiocoController: UIViewController {
     private func mettiPuntoTV() {
         guard let l = specchio else { return }
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        if let p = toccoTV { puntoTV.isHidden = false; puntoTV.position = CGPoint(x: p.x * l.bounds.width, y: l.bounds.height * (0.5 + 0.5 * p.y)) }
+        if let p = toccoTV { puntoTV.isHidden = false
+            puntoTV.position = toccoDS.affiancati ? CGPoint(x: l.bounds.width * (0.5 + 0.5 * p.x), y: p.y * l.bounds.height) : CGPoint(x: p.x * l.bounds.width, y: l.bounds.height * (0.5 + 0.5 * p.y)) }
         else { puntoTV.isHidden = true }
         CATransaction.commit()
     }
@@ -1115,7 +1127,11 @@ final class FMLABGiocoController: UIViewController {
         if esterno != nil && ds, let e = emulatore {
             // il gioco si vede solo sulla TV: qui un tappetino per il pennino (guardi la TV e tocchi qui).
             // Sempre schermo da toccare SOTTO (anche se avevi scambiato gli schermi): tappetino e puntino contano su quello
-            e.opzione("desmume_screens_layout", valore: "top/bottom")
+            // sulla TV i due schermi affiancati sono i più grandi (su una TV 16:9 ognuno largo metà schermo);
+            // il tappetino sul telefono resta lo schermo da toccare e il tocco si adatta alla disposizione
+            let affiancati = (UserDefaults.standard.string(forKey: "FMLAB.ds.tv") ?? "affiancati") == "affiancati"
+            e.opzione("desmume_screens_layout", valore: affiancati ? "left/right" : "top/bottom")
+            toccoDS.affiancati = affiancati
             dividiDS(true); secondoSchermo.isHidden = true
             e.vista.isHidden = true
             toccoDS.backgroundColor = UIColor(white: 1, alpha: 0.06); toccoDS.layer.cornerRadius = 16
@@ -1419,7 +1435,14 @@ final class FMLABGiocoController: UIViewController {
         filtroVista.backgroundColor = UIColor(patternImage: img)
     }
     private func scegliModoDS() {
-        let m = UIAlertController(title: LF("DS Screens in Landscape"), message: nil, preferredStyle: .actionSheet)
+        let m = UIAlertController(title: LF(esterno != nil ? "DS Screens" : "DS Screens in Landscape"), message: nil, preferredStyle: .actionSheet)
+        if esterno != nil {
+            let tv = UserDefaults.standard.string(forKey: "FMLAB.ds.tv") ?? "affiancati"
+            for (k, t) in [("affiancati", LF("On the TV: Side by Side (bigger)")), ("sopra", LF("On the TV: One Above the Other"))] {
+                m.addAction(UIAlertAction(title: (tv == k ? "✓ " : "") + t, style: .default) { [weak self] _ in
+                    UserDefaults.standard.set(k, forKey: "FMLAB.ds.tv"); self?.emulatore?.inPausa = false; self?.view.setNeedsLayout() })
+            }
+        }
         for (k, t) in [("grande", LF("Big Main Screen")), ("affiancati", LF("Side by Side"))] {
             m.addAction(UIAlertAction(title: (modoDS == k ? "✓ " : "") + t, style: .default) { [weak self] _ in
                 UserDefaults.standard.set(k, forKey: "FMLAB.ds.orizzontale"); self?.emulatore?.inPausa = false; self?.view.setNeedsLayout() })
@@ -1454,8 +1477,8 @@ final class FMLABGiocoController: UIViewController {
                 m.addAction(UIAlertAction(title: LF("Swap Screens"), style: .default) { [weak self] _ in
                     guard let self else { return }; e.inPausa = false; self.scambiati.toggle(); self.view.setNeedsLayout()
                 })
-                if view.bounds.width > view.bounds.height {
-                    m.addAction(UIAlertAction(title: LF("DS Screens in Landscape…"), style: .default) { [weak self] _ in self?.scegliModoDS() })
+                if esterno != nil || view.bounds.width > view.bounds.height {
+                    m.addAction(UIAlertAction(title: LF(esterno != nil ? "DS Screens on the TV…" : "DS Screens in Landscape…"), style: .default) { [weak self] _ in self?.scegliModoDS() })
                 }
             }
         }
@@ -1940,12 +1963,14 @@ final class FMLABDebole: NSObject {
 /// (nell'immagine del core lo schermo di sotto è la metà bassa).
 final class FMLABToccoDS: UIView {
     weak var emulatore: FMLABEmulatore?
+    /// TV con gli schermi affiancati: lo schermo da toccare è la metà destra dell'immagine
+    var affiancati = false
     /// Dove si tocca (0…1 nello schermo di sotto), per il puntino sulla TV; nil quando si alza il dito
     var toccato: ((CGPoint?) -> Void)?
     private func manda(_ t: Set<UITouch>, _ giu: Bool) {
         guard let x = t.first?.location(in: self), bounds.width > 0, bounds.height > 0 else { return }
         let p = CGPoint(x: min(1, max(0, x.x / bounds.width)), y: min(1, max(0, x.y / bounds.height)))
-        emulatore?.toccoX(p.x, y: 0.5 + 0.5 * p.y, premuto: giu)
+        if affiancati { emulatore?.toccoX(0.5 + 0.5 * p.x, y: p.y, premuto: giu) } else { emulatore?.toccoX(p.x, y: 0.5 + 0.5 * p.y, premuto: giu) }
         toccato?(giu ? p : nil)
     }
     override func touchesBegan(_ t: Set<UITouch>, with e: UIEvent?) { manda(t, true) }

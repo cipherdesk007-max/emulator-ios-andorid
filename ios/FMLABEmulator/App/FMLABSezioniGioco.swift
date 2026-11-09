@@ -108,7 +108,6 @@ struct FMLABSezioniGioco: View {
                 Toggle("Use the External Screen for Games", isOn: $usaEsterno)
                 HStack { Label("External screen", systemImage: "tv"); Spacer(); Text(schermoEsterno ?? LF("None")).foregroundColor(schermoEsterno == nil ? .secondary : .green) }
                 NavigationLink { FMLABGuidaTV(perGiochi: true) } label: { Label("Play on the TV…", systemImage: "airplayvideo") }
-                FMLABRigaAirPlay()
             } header: { Text("AirPlay and TV") } footer: {
                 Text("The AirPlay button (sound only) sends just the audio, like music: the picture stays on the iPhone. iOS lets only Screen Mirroring in Control Center send the picture, or a USB-C/HDMI cable. On DS the iPhone keeps the screens for touch.")
             }

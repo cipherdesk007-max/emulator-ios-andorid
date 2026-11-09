@@ -74,4 +74,6 @@
     <string name="muto_veloce">Mute sound in fast forward</string>
     <string name="mostra_fps">Show speed (fps)</string>
     <string name="cartelle_spiega">Your folders: %1$s/Giochi, Salvataggi, BIOS. They stay even if you uninstall the app.</string>
+    <string name="giocatore_entrato">Player %1$s connected</string>
+    <string name="giocatore_uscito">Player %1$s left</string>
 </resources>

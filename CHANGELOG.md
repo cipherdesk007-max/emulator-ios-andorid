@@ -1,6 +1,21 @@
 # FMLAB Emulator: novità
 
-## 0.6.0
+## 0.6.1
+- **L'iPhone fa da controller per Android**: con un gioco aperto su Android, un iPhone sullo stesso Wi-Fi apre
+  FMLAB Emulator › Controller 2 e diventa il giocatore 2 (fino a 4).
+  - Android si annuncia sul Wi-Fi e risponde alla ricerca come l'iPhone.
+  - Avvisa quando un giocatore entra o esce.
+  - Rilascia i tasti di chi si stacca o tace da 5 secondi.
+- **DS sulla TV più grande**: di base gli schermi sono affiancati; su una TV 16:9 ognuno è largo metà schermo, un
+  terzo in più di prima. Si può tornare a "uno sopra l'altro" dal menu del gioco › Schermi del DS sulla TV. Il
+  tocco sul telefono e il puntino sulla TV seguono la disposizione scelta.
+- **Copertine e icone**:
+  - per i giochi compressi già estratti si leggono dal gioco vero (icone e titoli PSP dentro .zip/.7z);
+  - nei nomi si tolgono "(Track 1)", "(Disc 1)" e i numeri d'elenco ("2760 - Naruto…"), così le copertine PS1
+    e PSP si trovano;
+  - i giochi rimasti senza copertina vengono cercati di nuovo.
+- Tolto "Solo il suono su AirPlay": non serviva per i giochi.
+
 - **Android ha gli emulatori veri**: l'APK è ora FMLAB Emulator, non solo il controller.
   - Motore nativo scritto per Android: OpenGL ES 3 (anche per gli emulatori che disegnano sulla GPU: PSP, N64,
     3DS), suono AAudio a bassa latenza, ritmo legato al suono come su iPhone, salvataggi scritti interi.

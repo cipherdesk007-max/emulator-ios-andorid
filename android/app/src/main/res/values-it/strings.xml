@@ -74,4 +74,6 @@
     <string name="muto_veloce">Suono muto con l\'avanti veloce</string>
     <string name="mostra_fps">Mostra velocità (fps)</string>
     <string name="cartelle_spiega">Le tue cartelle: %1$s/Giochi, Salvataggi, BIOS. Restano anche se disinstalli l\'app.</string>
+    <string name="giocatore_entrato">Giocatore %1$s collegato</string>
+    <string name="giocatore_uscito">Il giocatore %1$s è uscito</string>
 </resources>
