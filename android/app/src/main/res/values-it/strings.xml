@@ -84,4 +84,9 @@
     <string name="nero_aspetta">Aspetta</string>
     <string name="estraggo">Estraggo il gioco (solo la prima volta)… %1$d%%</string>
     <string name="zip_errore">Non riesco a estrarre lo .zip (danneggiato, con password o spazio insufficiente).</string>
+    <string name="schermi">Schermi</string>
+    <string name="schermi_auto">Automatica (verticale: uno sopra l\'altro; orizzontale: affiancati)</string>
+    <string name="schermi_sopra">Uno sopra l\'altro</string>
+    <string name="schermi_affiancati">Affiancati (i più grandi in orizzontale)</string>
+    <string name="schermi_grande">Schermo di sopra grande + quello da toccare piccolo</string>
 </resources>

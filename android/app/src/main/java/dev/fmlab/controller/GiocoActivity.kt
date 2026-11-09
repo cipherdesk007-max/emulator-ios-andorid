@@ -34,6 +34,7 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
     private val tastiController = IntArray(4)
     private val porte = mutableListOf<Int>()       // deviceId dei controller, nell'ordine in cui si sono fatti vivi
     private var veloce = false
+    private var doppio = 0
     private lateinit var nome: String
     private lateinit var gioco: File
     private val prefs by lazy { getSharedPreferences("fmlab", MODE_PRIVATE) }
@@ -54,10 +55,16 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         pad = PadView(this, trasparente = true, invia = { bit, giu -> tastiSchermo = if (giu) tastiSchermo or (1 shl bit) else tastiSchermo and (1 shl bit).inv(); invia(0) }) { menu() }
         pad.console(Emulatori.disposizione(nome), nome)
         // DS e 3DS: un dito sull'immagine (fuori dai tasti) tocca lo schermo del gioco
-        if (nome in setOf("melonds", "desmume", "citra", "azahar")) pad.toccoLibero = { x, y, giu ->
-            val r = rettangoloGioco(pad.width.toFloat(), pad.height.toFloat())
-            val px = ((x - r.left) / r.width()).coerceIn(0f, 1f); val py = ((y - r.top) / r.height()).coerceIn(0f, 1f)
-            Motore.tocco((px * 65534 - 32767).toInt(), (py * 65534 - 32767).toInt(), giu && r.contains(x, y))
+        doppio = when (nome) { "melonds", "desmume" -> 1; "citra", "azahar" -> 2; else -> 0 }
+        Motore.schermi(doppio, prefs.getInt("schermi", 0))
+        if (doppio > 0) pad.toccoLibero = { x, y, giu ->
+            // lo schermo da toccare è dove lo ha messo il motore (qualunque disposizione); il core vuole le coordinate
+            // sull'immagine intera, dove lo schermo di sotto è la metà bassa
+            val a = Motore.areaTocco()
+            val dentro = x >= a[0] && x <= a[2] && y >= a[1] && y <= a[3] && a[2] > a[0]
+            val px = ((x - a[0]) / (a[2] - a[0])).coerceIn(0f, 1f); val py = ((y - a[1]) / (a[3] - a[1])).coerceIn(0f, 1f)
+            val ix = a[4] + px * (a[5] - a[4]); val iy = if (a[6] > 0.5f) 0.5f + 0.5f * py else py
+            Motore.tocco((ix * 65534 - 32767).toInt(), (iy * 65534 - 32767).toInt(), giu && dentro)
         }
         radice.addView(pad, FrameLayout.LayoutParams(-1, -1))
         attesa = ProgressBar(this); radice.addView(attesa, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
@@ -143,7 +150,8 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
         Motore.pausa(true)
         val stato = File(Archivio.salvataggi, gioco.nameWithoutExtension + ".state")
         val voci = arrayOf(getString(R.string.riprendi), getString(R.string.salva_stato), getString(R.string.carica_stato),
-            getString(if (veloce) R.string.veloce_spento else R.string.veloce_acceso), getString(R.string.immagine), getString(R.string.esci_gioco))
+            getString(if (veloce) R.string.veloce_spento else R.string.veloce_acceso), getString(R.string.immagine), getString(R.string.esci_gioco)) +
+            (if (doppio > 0) arrayOf(getString(R.string.schermi)) else arrayOf())
         AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(gioco.nameWithoutExtension).setItems(voci) { _, i ->
             when (i) {
                 1 -> Toast.makeText(this, if (Motore.salvaStato(stato.path)) R.string.stato_salvato else R.string.stato_non_riuscito, Toast.LENGTH_SHORT).show()
@@ -151,9 +159,18 @@ class GiocoActivity : Activity(), InputManager.InputDeviceListener {
                 3 -> { veloce = !veloce; Motore.veloce(veloce, prefs.getBoolean("muto", true)) }
                 4 -> { scegliImmagine(); return@setItems }
                 5 -> { finish(); return@setItems }
+                6 -> { scegliSchermi(); return@setItems }
             }
             Motore.pausa(false)
         }.setOnCancelListener { Motore.pausa(false) }.show()
+    }
+    private fun scegliSchermi() {
+        val voci = intArrayOf(R.string.schermi_auto, R.string.schermi_sopra, R.string.schermi_affiancati, R.string.schermi_grande)
+        val ora = prefs.getInt("schermi", 0)
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert).setTitle(R.string.schermi)
+            .setItems(voci.mapIndexed { i, v -> (if (i == ora) "✓ " else "") + getString(v) }.toTypedArray()) { _, i ->
+                prefs.edit().putInt("schermi", i).apply(); Motore.schermi(doppio, i); Motore.pausa(false)
+            }.setOnCancelListener { Motore.pausa(false) }.show()
     }
     private fun scegliImmagine() {
         val voci = arrayOf(getString(R.string.filtro_nitido), getString(R.string.filtro_liscio), getString(R.string.effetto_righe), getString(R.string.effetto_lcd), getString(R.string.effetto_nessuno), getString(R.string.forma_16_9), getString(R.string.forma_originale))

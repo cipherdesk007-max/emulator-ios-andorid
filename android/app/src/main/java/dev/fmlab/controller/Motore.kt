@@ -24,4 +24,8 @@ object Motore {
     /** Avvisi ed errori del core (ultime righe). */
     @JvmStatic external fun messaggi(): String
     @JvmStatic external fun usaGpu(): Boolean
+    /** Due schermi: 0 no, 1 DS, 2 3DS; disposizione 0 automatica, 1 sopra/sotto, 2 affiancati, 3 grande + piccolo. */
+    @JvmStatic external fun schermi(doppio: Int, disposizione: Int)
+    /** Schermo da toccare: x0, y0, x1, y1 (pixel), u0, u1 (parte dell'immagine), metà di sotto (1) o tutta (0). */
+    @JvmStatic external fun areaTocco(): FloatArray
 }

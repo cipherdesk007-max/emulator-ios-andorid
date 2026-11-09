@@ -84,4 +84,9 @@
     <string name="nero_aspetta">Wait</string>
     <string name="estraggo">Extracting the game (only the first time)… %1$d%%</string>
     <string name="zip_errore">The .zip could not be extracted (damaged, protected by a password, or not enough space).</string>
+    <string name="schermi">Screens</string>
+    <string name="schermi_auto">Automatic (portrait: one above the other; landscape: side by side)</string>
+    <string name="schermi_sopra">One above the other</string>
+    <string name="schermi_affiancati">Side by side (biggest in landscape)</string>
+    <string name="schermi_grande">Big top screen + small touch screen</string>
 </resources>

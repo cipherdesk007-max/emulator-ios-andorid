@@ -1,6 +1,20 @@
 # FMLAB Emulator: novità
 
-## 0.6.3
+## 0.6.4
+- **Android, DS e 3DS a schermi grandi**: l'app separa da sé i due schermi (l'emulatore li dà uno sopra l'altro) e
+  li dispone come vuoi; menu del gioco › *Schermi*:
+  - **Automatica**: in verticale uno sopra l'altro, in orizzontale affiancati. In orizzontale ognuno è circa il
+    50% più alto di prima.
+  - **Uno sopra l'altro**.
+  - **Affiancati**.
+  - **Grande + piccolo**: lo schermo di sopra grande, quello da toccare accanto in piccolo.
+  Il tocco segue lo schermo di sotto dovunque sia. Sul 3DS si usa solo la parte vera dello schermo di sotto,
+  senza le bande nere. Non dipende dalle impostazioni interne di ogni emulatore.
+- **Android, tasti a schermo ridisegnati**:
+  - In verticale stanno tutti sotto il gioco: L e R sopra la croce, menu al centro, SELECT e START in basso.
+  - In orizzontale stanno ai lati, con SELECT e START agli angoli e il menu in alto a destra, così non coprono
+    più il gioco.
+
 - **3DS con Azahar**: Azahar è l'emulatore 3DS attuale, erede di Citra e Lime3DS, e ha un core ufficiale per
   Android.
   - Ora è tra gli emulatori da installare; se ci sono tutti e due, i giochi 3DS si aprono con lui.

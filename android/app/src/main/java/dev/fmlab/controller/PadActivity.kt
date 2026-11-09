@@ -107,10 +107,13 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
         val w = width.toFloat(); val h = height.toFloat(); if (w <= 0 || h <= 0) return
         tasti.clear()
         val ps = core == "pcsx_rearmed" || core == "ppsspp"
-        raggioCroce = min(h * 0.27f, w * 0.15f)
-        centroCroce[0] = w * 0.19f; centroCroce[1] = h * 0.62f
-        val r = min(h * 0.095f, w * 0.055f)
-        val cx = w * 0.81f; val cy = h * 0.62f; val passo = r * 2.15f
+        val verticale = h > w
+        // verticale: tasti nella parte bassa (il gioco sta in alto); orizzontale: ai lati, il gioco in mezzo
+        raggioCroce = if (verticale) min(w * 0.17f, h * 0.085f) else min(h * 0.24f, w * 0.13f)
+        val yTasti = if (verticale) h * 0.74f else h * 0.6f
+        centroCroce[0] = if (verticale) w * 0.24f else w * 0.13f; centroCroce[1] = yTasti
+        val r = if (verticale) min(w * 0.075f, h * 0.036f) else min(h * 0.085f, w * 0.048f)
+        val cx = if (verticale) w * 0.76f else w * 0.87f; val cy = yTasti; val passo = r * 2.15f
         fun tondo(bit: Int, nome: String, x: Float, y: Float) = tasti.add(Bottone(bit, nome, RectF(x - r, y - r, x + r, y + r)))
         when (disposizione) {
             0 -> { tondo(Tasto.B, "B", cx - passo * 0.55f, cy + passo * 0.35f); tondo(Tasto.A, "A", cx + passo * 0.55f, cy - passo * 0.35f) }
@@ -120,14 +123,24 @@ class PadView(context: Context, private val trasparente: Boolean = false, privat
                 tondo(Tasto.Y, if (ps) "□" else "Y", cx - passo, cy); tondo(Tasto.A, if (ps) "○" else "A", cx + passo, cy)
             }
         }
-        val sw = w * 0.17f; val sh = minOf(h * 0.12f, w * 0.13f); val m = 16 * d
-        fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Bottone(bit, nome, RectF(x, m, x + sw, m + sh), false))
+        val m = 16 * d
+        val sw = if (verticale) w * 0.22f else w * 0.13f; val sh = if (verticale) 46 * d else minOf(h * 0.11f, 52 * d)
+        val ySpalle = if (verticale) yTasti - raggioCroce - sh - 26 * d else m
+        fun spalla(bit: Int, nome: String, x: Float) = tasti.add(Bottone(bit, nome, RectF(x, ySpalle, x + sw, ySpalle + sh), false))
         if (disposizione >= 1) { spalla(Tasto.L, if (ps) "L1" else "L", m); spalla(Tasto.R, if (ps) "R1" else "R", w - m - sw) }
         if (disposizione >= 3) { spalla(Tasto.L2, "L2", m + sw + m); spalla(Tasto.R2, "R2", w - 2 * m - 2 * sw) }
-        val bw = maxOf(w * 0.11f, 74 * d); val bh = minOf(h * 0.08f, 44 * d); val by = h - m - bh
-        tasti.add(Bottone(Tasto.SELECT, "SELECT", RectF(w / 2 - bw - 8 * d, by, w / 2 - 8 * d, by + bh), false))
-        tasti.add(Bottone(Tasto.START, "START", RectF(w / 2 + 8 * d, by, w / 2 + bw + 8 * d, by + bh), false))
-        rettMenu.set(w / 2 - 28 * d, h * 0.2f, w / 2 + 28 * d, h * 0.2f + 40 * d)
+        val bw = 84 * d; val bh = 38 * d
+        if (verticale) {   // in basso al centro, sotto i tasti
+            val by = h - m - bh
+            tasti.add(Bottone(Tasto.SELECT, "SELECT", RectF(w / 2 - bw - 8 * d, by, w / 2 - 8 * d, by + bh), false))
+            tasti.add(Bottone(Tasto.START, "START", RectF(w / 2 + 8 * d, by, w / 2 + bw + 8 * d, by + bh), false))
+            rettMenu.set(w / 2 - 28 * d, yTasti - 20 * d, w / 2 + 28 * d, yTasti + 20 * d)
+        } else {           // agli angoli in basso, fuori dal gioco
+            val by = h - m - bh
+            tasti.add(Bottone(Tasto.SELECT, "SELECT", RectF(m, by, m + bw, by + bh), false))
+            tasti.add(Bottone(Tasto.START, "START", RectF(w - m - bw, by, w - m, by + bh), false))
+            rettMenu.set(w - m - 56 * d, m + sh + 14 * d, w - m, m + sh + 54 * d)
+        }
     }
 
     override fun onDraw(c: Canvas) {

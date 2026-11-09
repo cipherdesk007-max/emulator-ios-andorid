@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include <unistd.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -53,6 +54,11 @@ static pthread_mutex_t G_lock = PTHREAD_MUTEX_INITIALIZER;
 static ANativeWindow *G_finestraNuova; static atomic_bool G_cambioFinestra;
 static atomic_int G_filtro = 0, G_effetto = 0, G_forma = 0;   // filtro: 0 nitido 1 liscio; effetto: 0 1 righe 2 lcd; forma 0 originale 1 16:9 2 pieno
 static atomic_int G_fps100;
+// due schermi (DS = 1, 3DS = 2): l'immagine del core ha sopra e sotto impilati; l'app li separa e li dispone.
+// disposizione: 0 automatica (verticale: uno sopra l'altro; orizzontale: affiancati), 1 sopra/sotto, 2 affiancati, 3 grande + piccolo
+static atomic_int G_doppio, G_dispDoppio;
+static float G_areaTocco[4];   // dove sta lo schermo da toccare, in pixel della finestra (x0, y0, x1, y1)
+static float G_toccoU[2];      // parte orizzontale dell'immagine occupata dallo schermo di sotto (3DS: è più stretto)
 static atomic_int G_immagini;     // fotogrammi con un'immagine vera (software o GPU)
 static char G_azione[1200]; static atomic_int G_daFare;     // 1 salva stato, 2 carica stato
 static atomic_int G_esito;
@@ -179,23 +185,15 @@ static void video(const void *d, unsigned w, unsigned h, size_t pitch) {
 }
 static void disegna(void) {
     if (!G_finestra || !G_w) return;
-    int W = ANativeWindow_getWidth(G_finestra), H = ANativeWindow_getHeight(G_finestra);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, W, H);
+    int Wi = ANativeWindow_getWidth(G_finestra), Hi = ANativeWindow_getHeight(G_finestra);
+    float W = Wi, H = Hi;
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); glViewport(0, 0, Wi, Hi);
     glDisable(GL_DEPTH_TEST); glDisable(GL_STENCIL_TEST); glDisable(GL_BLEND); glDisable(GL_CULL_FACE); glDisable(GL_SCISSOR_TEST);
     glDisable(GL_POLYGON_OFFSET_FILL); glDisable(GL_RASTERIZER_DISCARD); glColorMask(1, 1, 1, 1); glDepthMask(GL_TRUE);
     glBindSampler(0, 0); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
-    float r = G_av.geometry.aspect_ratio > 0.1f ? G_av.geometry.aspect_ratio : (float)G_w / G_h;
-    int forma = atomic_load(&G_forma);
-    if (forma == 1 && W > H && r < 16.f / 9) r = 16.f / 9; else if (forma == 2) r = (float)W / H;
-    float w = W, h = w / r; if (h > H) { h = H; w = h * r; }
-    float sx = w / W, sy = h / H, oy = H > W ? 1 - sy : 0;   // in verticale: in alto, i tasti stanno sotto
     bool hw = G_usaHw && G_fbo;
-    // coordinate della texture: il software ha la riga 0 in alto; il framebuffer GL del core di solito in basso
     float u = hw ? (float)G_w / G_fboW : 1, vh = hw ? (float)G_h / G_fboH : 1;
-    float vAlto = 0, vBasso = vh;
-    if (hw && G_hw.bottom_left_origin) { vAlto = vh; vBasso = 0; }
-    const float q[] = { -sx, oy - sy, 0, vBasso,  sx, oy - sy, u, vBasso,  -sx, oy + sy, 0, vAlto,  sx, oy + sy, u, vAlto };
     glUseProgram(G_prog);
     glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, hw ? G_fboTex : G_tex);
     bool liscio = atomic_load(&G_filtro) || hw || G_h >= 380;
@@ -207,8 +205,46 @@ static void disegna(void) {
     glUniform2f(U_righe, righe * (float)G_w / G_h, righe);
     glBindBuffer(GL_ARRAY_BUFFER, 0); glBindVertexArray(0);
     glEnableVertexAttribArray(0); glEnableVertexAttribArray(1);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, q); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, q + 2);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    // un rettangolo: dove (pixel, origine in alto a sinistra) e quale parte dell'immagine (0…1, riga 0 in alto)
+    #define QUADRO(x0, y0, x1, y1, a0, b0, a1, b1) do { \
+        float X0 = (x0) / W * 2 - 1, X1 = (x1) / W * 2 - 1, Y0 = 1 - (y0) / H * 2, Y1 = 1 - (y1) / H * 2; \
+        float va = hw && G_hw.bottom_left_origin ? vh * (1 - (b0)) : vh * (b0), vb = hw && G_hw.bottom_left_origin ? vh * (1 - (b1)) : vh * (b1); \
+        const float q[] = { X0, Y1, (a0) * u, vb,  X1, Y1, (a1) * u, vb,  X0, Y0, (a0) * u, va,  X1, Y0, (a1) * u, va }; \
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, q); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, q + 2); \
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4); } while (0)
+    int doppio = atomic_load(&G_doppio);
+    if (!doppio) {
+        float r = G_av.geometry.aspect_ratio > 0.1f ? G_av.geometry.aspect_ratio : (float)G_w / G_h;
+        int forma = atomic_load(&G_forma);
+        if (forma == 1 && W > H && r < 16.f / 9) r = 16.f / 9; else if (forma == 2) r = (float)W / H;
+        float w = W, h = w / r; if (h > H) { h = H; w = h * r; }
+        float x0 = (W - w) / 2, y0 = H > W ? 0 : (H - h) / 2;      // in verticale in alto: i tasti stanno sotto
+        QUADRO(x0, y0, x0 + w, y0 + h, 0, 0, 1, 1);
+        G_areaTocco[0] = x0; G_areaTocco[1] = y0; G_areaTocco[2] = x0 + w; G_areaTocco[3] = y0 + h; G_toccoU[0] = 0; G_toccoU[1] = 1;
+    } else {
+        // 3DS: sopra 400×240, sotto 320×240 centrato (nell'immagine larga 400); DS: tutti e due 256×192
+        float cl = doppio == 2 ? 0.1f : 0, cr = doppio == 2 ? 0.9f : 1;
+        float aSu = (float)G_w / (G_h * 0.5f), aGiu = aSu * (cr - cl);
+        int d = atomic_load(&G_dispDoppio); if (d == 0) d = H > W ? 1 : 2;
+        float su[4], giu[4];
+        if (d == 1) {                     // uno sopra l'altro
+            float uu = fminf(H / 2, W / fmaxf(aSu, aGiu)), y0 = H > W ? 0 : (H - 2 * uu) / 2;
+            su[0] = (W - aSu * uu) / 2; su[1] = y0; su[2] = su[0] + aSu * uu; su[3] = y0 + uu;
+            giu[0] = (W - aGiu * uu) / 2; giu[1] = y0 + uu; giu[2] = giu[0] + aGiu * uu; giu[3] = y0 + 2 * uu;
+        } else if (d == 2) {              // affiancati: in orizzontale i più grandi
+            float uu = fminf(H, W / (aSu + aGiu)), x0 = (W - (aSu + aGiu) * uu) / 2, y0 = H > W ? 0 : (H - uu) / 2;
+            su[0] = x0; su[1] = y0; su[2] = x0 + aSu * uu; su[3] = y0 + uu;
+            giu[0] = su[2]; giu[1] = y0; giu[2] = giu[0] + aGiu * uu; giu[3] = y0 + uu;
+        } else {                          // grande + piccolo: quello di sopra grande, quello da toccare accanto in piccolo
+            float k = 0.42f, uu = fminf(H, W / (aSu + k * aGiu)), x0 = (W - (aSu + k * aGiu) * uu) / 2, y0 = H > W ? 0 : (H - uu) / 2;
+            su[0] = x0; su[1] = y0; su[2] = x0 + aSu * uu; su[3] = y0 + uu;
+            giu[0] = su[2]; giu[1] = y0 + uu * (1 - k); giu[2] = giu[0] + aGiu * uu * k; giu[3] = y0 + uu;
+        }
+        QUADRO(su[0], su[1], su[2], su[3], 0, 0, 1, 0.5f);
+        QUADRO(giu[0], giu[1], giu[2], giu[3], cl, 0.5f, cr, 1);
+        memcpy(G_areaTocco, giu, sizeof giu); G_toccoU[0] = cl; G_toccoU[1] = cr;
+    }
+    #undef QUADRO
     eglSwapBuffers(G_dpy, G_sup);
 }
 
@@ -442,3 +478,10 @@ JNIEXPORT jstring JNICALL J(messaggi)(JNIEnv *e, jclass k) {
     pthread_mutex_lock(&G_lockMsg); jstring s = (*e)->NewStringUTF(e, G_messaggi); pthread_mutex_unlock(&G_lockMsg); return s;
 }
 JNIEXPORT jboolean JNICALL J(usaGpu)(JNIEnv *e, jclass k) { return G_usaHw; }
+
+JNIEXPORT void JNICALL J(schermi)(JNIEnv *e, jclass k, jint doppio, jint disposizione) { atomic_store(&G_doppio, doppio); atomic_store(&G_dispDoppio, disposizione); }
+/** Schermo da toccare: x0, y0, x1, y1 in pixel, poi la parte orizzontale dell'immagine (u0, u1) e se è la metà di sotto (1) o tutta (0). */
+JNIEXPORT jfloatArray JNICALL J(areaTocco)(JNIEnv *e, jclass k) {
+    float v[7] = { G_areaTocco[0], G_areaTocco[1], G_areaTocco[2], G_areaTocco[3], G_toccoU[0], G_toccoU[1], atomic_load(&G_doppio) ? 1.f : 0.f };
+    jfloatArray a = (*e)->NewFloatArray(e, 7); (*e)->SetFloatArrayRegion(e, a, 0, 7, v); return a;
+}
